@@ -1,0 +1,18 @@
+.gradle/
+build/
+**/build/
+.idea/
+*.iml
+local.properties
+.kotlin/
+.DS_Store
+*.log
+
+# local secrets
+credentials.bin
+
+# generated release artifacts
+dist/
+*.apk
+*.msi
+*.exe
