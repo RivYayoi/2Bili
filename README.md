@@ -158,6 +158,8 @@ EXE 和 MSI 都是按机器安装（per-machine），安装时会请求管理员
 
 ### 已生成的 Android APK
 
+GitHub Release（含 APK 附件）：<https://github.com/RivYayoi/2Bili/releases/tag/v1.0.3>
+
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
 | `dist\2bili-1.0.3-debug.apk` | 26 MB | `376de5c3e268448b0580223ebf535c79e810aa7ad46847ff6f4400cf903cac3c` |
