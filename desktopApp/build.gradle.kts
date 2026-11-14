@@ -159,7 +159,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "2bili"
-            packageVersion = "1.0.3"
+            packageVersion = "1.0.4"
             description = "A third-party bilibili client"
             vendor = "2bili"
 
@@ -168,6 +168,12 @@ compose.desktop {
             // jdk.unsupported, which makes VLC fail with
             // "vmem error: video format setup failure (no pictures)".
             modules("jdk.unsupported")
+
+            windows {
+                // jpackage passes --win-shortcut, which creates the desktop
+                // shortcut for both per-user and per-machine installs.
+                shortcut = true
+            }
 
             appResourcesRootDir.set(vlcResourcesDir)
         }

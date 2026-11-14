@@ -148,8 +148,10 @@ Android（需要 SDK）：
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `desktopApp\build\compose\binaries\main\exe\2bili-1.0.3.exe` | 132 MB | `885406750ddfb8f684361204238c64084f18efb1f7953d512a2101973b72cf98` |
-| `desktopApp\build\compose\binaries\main\msi\2bili-1.0.3.msi` | 131 MB | `7e1ac5aa4b5c25d751f505067795babf4162e534ea5ad7bfe8bc920ea4e60b25` |
+| `desktopApp\build\compose\binaries\main\exe\2bili-1.0.4.exe` | 132 MB | `779afb2034df8084d176e5fb38a6acb9d33e909a4b28661ae5e9ed04613cd15a` |
+| `desktopApp\build\compose\binaries\main\msi\2bili-1.0.4.msi` | 131 MB | `60e59ebd00145a309e6ec232619a1eb3f4a29cb7656ea3ab59df2244510dd412` |
+
+1.0.4 在 1.0.3 基础上增加设置页、桌面首屏双栏布局，并把版本号递增到 1.0.4，避免覆盖安装时进入同版本维护模式。安装包会创建桌面快捷方式：`desktopApp/build.gradle.kts` 里的 `windows { shortcut = true }` 对应 jpackage 的 `--win-shortcut`，MSI 的 `Shortcut` 表已确认包含 `DesktopFolder | 2bili`。
 
 1.0.3 修复了安装版播放黑屏：jpackage 生成的精简 JRE 默认不含 `jdk.unsupported`，而 vlcj 的 `ByteBufferFactory` 需要 `sun.misc.Unsafe`，缺少时 VLC 会报 `vmem error: video format setup failure (no pictures)`。`desktopApp/build.gradle.kts` 里已显式加入 `modules("jdk.unsupported")`，不要删除。1.0.3 可直接覆盖升级 1.0.0–1.0.2；不要反复运行**同一版本**的安装包，Windows Installer 会进入维护模式，看起来像“没有反应”。
 
@@ -159,16 +161,16 @@ EXE 和 MSI 都是按机器安装（per-machine），安装时会请求管理员
 
 ### 已生成的 Android APK
 
-GitHub Release（含 APK 附件）：<https://github.com/RivYayoi/2Bili/releases/tag/v1.0.3>
+GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传）：<https://github.com/RivYayoi/2Bili/releases/tag/v1.0.3>
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `dist\2bili-1.0.3-debug.apk` | 19 MB | `1e6d8a51f00201fa3450966dc5b324f52544bb0c37f2eb7193b8d858d05eb915` |
+| `dist\2bili-1.0.4-debug.apk` | 19 MB | `305096068c0e989d603548739653b376723804d07f78bc71884bb78c1f101a63` |
 
-- 包名 `tv.bili.android`，`versionCode 3`，`versionName 1.0.3`
+- 包名 `tv.bili.android`，`versionCode 4`，`versionName 1.0.4`
 - `minSdk 26` / `targetSdk 36`，包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64`
 - 使用 Android debug keystore 签名，可直接 `adb install`；正式发布前需要配置自己的 release signingConfig
-- 安装命令：`adb install -r dist\2bili-1.0.3-debug.apk`
+- 安装命令：`adb install -r dist\2bili-1.0.4-debug.apk`
 
 ### 验证情况
 
@@ -181,6 +183,7 @@ GitHub Release（含 APK 附件）：<https://github.com/RivYayoi/2Bili/releases
 - `./gradlew :desktopApp:run` 能启动真实窗口（`xwininfo` 可见 `"2bili"`，约 1270×770），主线程进入 Compose 事件循环，首页请求与 LazyGrid 渲染无异常
 - 未安装 VLC 时会打印提示，应用继续运行；播放页显示错误而不是崩溃
 - 最终 app image（`desktopApp/build/compose/binaries/main/app/2bili/2bili.exe`）在 Windows 上启动成功，窗口标题为 `2bili`
+- 1.0.4 MSI 的 `Shortcut` 表已确认包含 `DesktopFolder | 2bili`；实际安装后的桌面快捷方式仍需在干净环境点一次安装验证
 - 桌面 800×600 实测：详情页首屏无需滚动即可看到封面、标题和“播放第一页”；首页齿轮可进入设置页
 - 1.0.3 EXE 在 Windows 上以管理员权限静默安装成功，覆盖旧 1.0.2；卸载项显示版本 1.0.3，安装目录 `C:\Program Files\2bili`
 - 安装后的 1.0.3 已人工点击实测：首页 → 详情 → 播放正常出画，弹幕滚动，音频轨道加载成功（`audioTracks=2`），VLC 日志无 `vmem error`
@@ -258,7 +261,7 @@ GitHub Release（含 APK 附件）：<https://github.com/RivYayoi/2Bili/releases
 | 现象 | 处理 |
 | --- | --- |
 | 双击安装包没反应、没有窗口 | 先看任务栏是否有“2bili 安装程序”；安装需要管理员权限，可右键安装包选“以管理员身份运行” |
-| 安装包反复运行都停在维护界面 | 1.0.3 可直接升级 1.0.0–1.0.2；不要重复运行同一版本，Windows Installer 会进入维护模式 |
+| 安装包反复运行都停在维护界面 | 不要重复运行同一版本，Windows Installer 会进入维护模式；1.0.4 已递增版本号，可直接覆盖 1.0.3（若仍进入维护模式，先卸载旧版） |
 | 播放页黑屏、提示 VLC 初始化失败 | 安装 64 位 VLC 3.x，或设置 `VLC_HOME` / `jna.library.path`；安装包已内置 VLC |
 | 播放页黑屏但声音正常 | 已默认软件解码并自动切换备用 CDN；若仍复现，用 `-D2bili.vlc.debug=true` 启动并把控制台 VLC 日志发出来 |
 | `./gradlew :desktopApp:run` 能播，安装版黑屏且日志有 `vmem error: video format setup failure (no pictures)` | jpackage 精简 JRE 缺少 `jdk.unsupported`，vlcj 的 `ByteBufferFactory` 初始化 `sun.misc.Unsafe` 失败。确认 `desktopApp/build.gradle.kts` 的 `nativeDistributions { modules("jdk.unsupported") }` 仍在，并重新执行 `packageExe --rerun-tasks` |

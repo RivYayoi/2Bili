@@ -155,7 +155,7 @@ private fun SettingsContent(
                 }
 
                 SettingsSection("关于") {
-                    Text("2bili 1.0.3", style = MaterialTheme.typography.titleSmall)
+                    Text("2bili 1.0.4", style = MaterialTheme.typography.titleSmall)
                     Text(
                         text = "Kotlin Multiplatform + Compose Multiplatform",
                         style = MaterialTheme.typography.bodySmall,
