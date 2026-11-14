@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextLayoutResult
@@ -47,6 +48,9 @@ fun DanmakuOverlay(
     danmaku: Flow<Danmaku>,
     positionMs: Long,
     isPlaying: Boolean,
+    enabled: Boolean = true,
+    opacity: Float = 1f,
+    fontScale: Float = 1f,
     modifier: Modifier = Modifier,
 ) {
     val pending = remember { mutableStateListOf<Danmaku>() }
@@ -86,7 +90,8 @@ fun DanmakuOverlay(
         }
     }
 
-    LaunchedEffect(Unit) {
+    val scale = fontScale.coerceIn(0.6f, 2f)
+    LaunchedEffect(scale) {
         while (true) {
             withFrameNanos {
                 while (pending.isNotEmpty() && pending.first().progressMs <= smoothMs) {
@@ -95,7 +100,7 @@ fun DanmakuOverlay(
                         text = item.content,
                         style = TextStyle(
                             color = Color(0xFF000000L or (item.color and 0xFFFFFFL)),
-                            fontSize = (item.fontSize.coerceIn(12, 36) * 0.72f).sp,
+                            fontSize = (item.fontSize.coerceIn(12, 36) * 0.72f * scale).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
@@ -118,7 +123,7 @@ fun DanmakuOverlay(
         }
     }
 
-    Canvas(modifier) {
+    Canvas(modifier.alpha(if (enabled) opacity.coerceIn(0.1f, 1f) else 0f)) {
         val laneHeight = 30.dp.toPx()
         val topPadding = 8.dp.toPx()
         val speed = (size.width + 400.dp.toPx()) / (DURATION_MS / 1000f)

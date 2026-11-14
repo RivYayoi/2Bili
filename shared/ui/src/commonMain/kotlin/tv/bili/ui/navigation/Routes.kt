@@ -20,3 +20,6 @@ data object SearchRoute
 
 @Serializable
 data object LoginRoute
+
+@Serializable
+data object SettingsRoute

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -120,81 +121,147 @@ private fun DetailBody(
     detail: VideoDetail,
     onPlay: (cid: Long, title: String) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .widthIn(max = 1100.dp)
-            .fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                AsyncImage(
-                    model = detail.coverUrl,
-                    contentDescription = detail.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            }
-        }
+        // Desktop gets a two-column header so the cover, title, play button and
+        // description all fit above the fold even at the 800x600 minimum size.
+        val wide = maxWidth >= 720.dp
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = detail.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-                Text(
-                    text = buildString {
-                        append(detail.ownerName)
-                        append(" · ${formatCount(detail.viewCount)}播放")
-                        append(" · ${formatCount(detail.danmakuCount)}弹幕")
-                        append(" · ${formatDuration(detail.durationSec)}")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Button(
-                    onClick = {
-                        detail.pages.firstOrNull()?.let { page ->
-                            onPlay(page.cid, detail.title)
-                        }
-                    },
-                    enabled = detail.pages.isNotEmpty(),
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("播放")
+        LazyColumn(
+            modifier = Modifier
+                .widthIn(max = 1100.dp)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                if (wide) {
+                    WideDetailHeader(detail = detail, onPlay = onPlay)
+                } else {
+                    StackedDetailHeader(detail = detail, onPlay = onPlay)
+                }
+            }
+
+            if (detail.pages.size > 1) {
+                item {
+                    Text("分P（${detail.pages.size}）", style = MaterialTheme.typography.titleMedium)
+                }
+
+                items(
+                    items = detail.pages,
+                    key = { it.cid },
+                ) { page: VideoPage ->
+                    PageRow(page = page, onClick = { onPlay(page.cid, page.title) })
                 }
             }
         }
+    }
+}
 
-        item {
-            Text(
-                text = detail.description.ifBlank { "暂无简介" },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+@Composable
+private fun WideDetailHeader(
+    detail: VideoDetail,
+    onPlay: (cid: Long, title: String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        CoverImage(
+            detail = detail,
+            modifier = Modifier
+                .weight(0.45f)
+                .aspectRatio(16f / 9f),
+        )
+        Column(
+            modifier = Modifier.weight(0.55f),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            DetailInfo(detail = detail, onPlay = onPlay, compact = true)
         }
+    }
+}
 
-        if (detail.pages.size > 1) {
-            item {
-                Text("分P（${detail.pages.size}）", style = MaterialTheme.typography.titleMedium)
-            }
+@Composable
+private fun StackedDetailHeader(
+    detail: VideoDetail,
+    onPlay: (cid: Long, title: String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        CoverImage(
+            detail = detail,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f),
+        )
+        DetailInfo(detail = detail, onPlay = onPlay, compact = false)
+    }
+}
 
-            items(
-                items = detail.pages,
-                key = { it.cid },
-            ) { page: VideoPage ->
-                PageRow(page = page, onClick = { onPlay(page.cid, page.title) })
-            }
+@Composable
+private fun CoverImage(
+    detail: VideoDetail,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        AsyncImage(
+            model = detail.coverUrl,
+            contentDescription = detail.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        )
+    }
+}
+
+@Composable
+private fun DetailInfo(
+    detail: VideoDetail,
+    onPlay: (cid: Long, title: String) -> Unit,
+    compact: Boolean,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = detail.title,
+            style = MaterialTheme.typography.headlineSmall,
+            maxLines = if (compact) 2 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = buildString {
+                append(detail.ownerName)
+                append(" · ${formatCount(detail.viewCount)}播放")
+                append(" · ${formatCount(detail.danmakuCount)}弹幕")
+                append(" · ${formatDuration(detail.durationSec)}")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = {
+                detail.pages.firstOrNull()?.let { page ->
+                    onPlay(page.cid, detail.title)
+                }
+            },
+            enabled = detail.pages.isNotEmpty(),
+        ) {
+            Icon(Icons.Default.PlayArrow, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("播放第一页")
         }
+        Text(
+            text = detail.description.ifBlank { "暂无简介" },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (compact) 5 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

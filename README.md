@@ -7,11 +7,12 @@
 ## 已实现（MVP）
 
 - 首页推荐流（下拉/滚动加载更多）
-- 视频详情（封面、简介、分 P 列表）
+- 视频详情（封面、简介、分 P 列表）；桌面宽屏使用双栏首屏，800×600 下无需滚动即可看到封面、标题和“播放第一页”
 - 播放页：DASH 音视频、画质切换、倍速、进度拖动
 - 弹幕：历史弹幕 + 实时 WebSocket 弹幕，Compose Canvas 滚动渲染
 - 搜索（关键词、分页）
 - 扫码登录（二维码生成 + 轮询 + 凭据加密落盘）
+- 设置页：默认画质、弹幕开关/不透明度/字号，配置本地持久化
 - WBI 签名（`w_rid` + `wts`）统一收口
 - 风控处理：`-352` 自动重试一次、`412` 明确报错
 - 窗口自适应：800×600 ~ 2560×1440
@@ -147,8 +148,8 @@ Android（需要 SDK）：
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `desktopApp\build\compose\binaries\main\exe\2bili-1.0.3.exe` | 168 MB | `416c8693674b9d9b5cd1979dac65babbc3f2c922d4d73e2dc17bec4398cefaa1` |
-| `desktopApp\build\compose\binaries\main\msi\2bili-1.0.3.msi` | 167 MB | `9a1e29d2fb0e1f9692b0109e9615aa88b2623166b097ec022ed6c912ae92404e` |
+| `desktopApp\build\compose\binaries\main\exe\2bili-1.0.3.exe` | 132 MB | `885406750ddfb8f684361204238c64084f18efb1f7953d512a2101973b72cf98` |
+| `desktopApp\build\compose\binaries\main\msi\2bili-1.0.3.msi` | 131 MB | `7e1ac5aa4b5c25d751f505067795babf4162e534ea5ad7bfe8bc920ea4e60b25` |
 
 1.0.3 修复了安装版播放黑屏：jpackage 生成的精简 JRE 默认不含 `jdk.unsupported`，而 vlcj 的 `ByteBufferFactory` 需要 `sun.misc.Unsafe`，缺少时 VLC 会报 `vmem error: video format setup failure (no pictures)`。`desktopApp/build.gradle.kts` 里已显式加入 `modules("jdk.unsupported")`，不要删除。1.0.3 可直接覆盖升级 1.0.0–1.0.2；不要反复运行**同一版本**的安装包，Windows Installer 会进入维护模式，看起来像“没有反应”。
 
@@ -162,7 +163,7 @@ GitHub Release（含 APK 附件）：<https://github.com/RivYayoi/2Bili/releases
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `dist\2bili-1.0.3-debug.apk` | 26 MB | `376de5c3e268448b0580223ebf535c79e810aa7ad46847ff6f4400cf903cac3c` |
+| `dist\2bili-1.0.3-debug.apk` | 19 MB | `1e6d8a51f00201fa3450966dc5b324f52544bb0c37f2eb7193b8d858d05eb915` |
 
 - 包名 `tv.bili.android`，`versionCode 3`，`versionName 1.0.3`
 - `minSdk 26` / `targetSdk 36`，包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64`
@@ -175,10 +176,12 @@ GitHub Release（含 APK 附件）：<https://github.com/RivYayoi/2Bili/releases
 
 - `./gradlew build` 通过（含全部桌面编译与测试）
 - `./gradlew :shared:data:desktopTest :shared:core:desktopTest` 通过（WBI 黄金向量、格式化、播放地址映射共 9 个用例）
+- `./gradlew :shared:ui:desktopTest` 通过（含设置本地持久化测试；VLC 测试在没有 `VLC_TEST_*` 环境变量时会自动跳过）
 - `./gradlew --version`（wrapper 自举）通过
 - `./gradlew :desktopApp:run` 能启动真实窗口（`xwininfo` 可见 `"2bili"`，约 1270×770），主线程进入 Compose 事件循环，首页请求与 LazyGrid 渲染无异常
 - 未安装 VLC 时会打印提示，应用继续运行；播放页显示错误而不是崩溃
 - 最终 app image（`desktopApp/build/compose/binaries/main/app/2bili/2bili.exe`）在 Windows 上启动成功，窗口标题为 `2bili`
+- 桌面 800×600 实测：详情页首屏无需滚动即可看到封面、标题和“播放第一页”；首页齿轮可进入设置页
 - 1.0.3 EXE 在 Windows 上以管理员权限静默安装成功，覆盖旧 1.0.2；卸载项显示版本 1.0.3，安装目录 `C:\Program Files\2bili`
 - 安装后的 1.0.3 已人工点击实测：首页 → 详情 → 播放正常出画，弹幕滚动，音频轨道加载成功（`audioTracks=2`），VLC 日志无 `vmem error`
 - 播放页画质菜单可在 480P / 360P 间切换，切换后重新请求播放地址并以 `640x386` 出画；VLC 日志显示 `Received first picture`

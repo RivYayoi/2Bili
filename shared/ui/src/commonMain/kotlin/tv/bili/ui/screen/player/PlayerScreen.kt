@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import tv.bili.ui.icon.PauseIcon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,6 +53,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val controller = rememberPlayerController()
     val playerState by controller.state.collectAsStateWithLifecycle()
 
@@ -81,6 +82,9 @@ fun PlayerScreen(
             danmaku = viewModel.danmaku,
             positionMs = playerState.positionMs,
             isPlaying = playerState.isPlaying,
+            enabled = settings.danmakuEnabled,
+            opacity = settings.danmakuOpacity,
+            fontScale = settings.danmakuFontScale,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -217,7 +221,7 @@ private fun BottomControls(
     ) {
         IconButton(onClick = onTogglePlay) {
             Icon(
-                imageVector = if (playerState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                imageVector = if (playerState.isPlaying) PauseIcon else Icons.Default.PlayArrow,
                 contentDescription = if (playerState.isPlaying) "暂停" else "播放",
                 tint = Color.White,
             )

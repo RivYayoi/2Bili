@@ -11,6 +11,7 @@ import tv.bili.ui.screen.home.HomeScreen
 import tv.bili.ui.screen.login.QrLoginScreen
 import tv.bili.ui.screen.player.PlayerScreen
 import tv.bili.ui.screen.search.SearchScreen
+import tv.bili.ui.screen.settings.SettingsScreen
 
 @Composable
 fun AppNavHost(
@@ -27,6 +28,7 @@ fun AppNavHost(
                 onVideoClick = { bvid -> navController.navigate(DetailRoute(bvid)) },
                 onSearchClick = { navController.navigate(SearchRoute) },
                 onLoginClick = { navController.navigate(LoginRoute) },
+                onSettingsClick = { navController.navigate(SettingsRoute) },
             )
         }
 
@@ -62,6 +64,12 @@ fun AppNavHost(
             QrLoginScreen(
                 onBack = { navController.popBackStack() },
                 onLoggedIn = { navController.popBackStack() },
+            )
+        }
+
+        composable<SettingsRoute> {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
             )
         }
     }

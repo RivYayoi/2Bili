@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +43,7 @@ fun HomeScreen(
     onVideoClick: (String) -> Unit,
     onSearchClick: () -> Unit,
     onLoginClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     viewModel: HomeViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -51,6 +53,7 @@ fun HomeScreen(
         onVideoClick = onVideoClick,
         onSearchClick = onSearchClick,
         onLoginClick = onLoginClick,
+        onSettingsClick = onSettingsClick,
         onRetry = viewModel::loadFirstPage,
         onLoadMore = viewModel::loadMore,
         onRetryLoadMore = viewModel::retryLoadMore,
@@ -64,6 +67,7 @@ private fun HomeContent(
     onVideoClick: (String) -> Unit,
     onSearchClick: () -> Unit,
     onLoginClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
@@ -75,6 +79,9 @@ private fun HomeContent(
                 actions = {
                     IconButton(onClick = onSearchClick) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")
+                    }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "设置")
                     }
                     IconButton(onClick = onLoginClick) {
                         Icon(Icons.Default.AccountCircle, contentDescription = "登录")

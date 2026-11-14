@@ -18,6 +18,8 @@ import tv.bili.domain.model.Danmaku
 import tv.bili.domain.model.PlayUrl
 import tv.bili.domain.repository.DanmakuRepository
 import tv.bili.domain.repository.VideoRepository
+import tv.bili.ui.settings.AppSettings
+import tv.bili.ui.settings.SettingsRepository
 
 data class PlayerUiState(
     val isLoading: Boolean = true,
@@ -29,10 +31,13 @@ data class PlayerUiState(
 class PlayerViewModel(
     private val videoRepository: VideoRepository,
     private val danmakuRepository: DanmakuRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
+
+    val settings: StateFlow<AppSettings> = settingsRepository.state
 
     private val _danmaku = MutableSharedFlow<Danmaku>(
         replay = 4_096,
@@ -60,14 +65,20 @@ class PlayerViewModel(
         playJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, playUrl = null) }
 
-            when (val result = videoRepository.playUrl(bvid, cid, INITIAL_QN)) {
+            val requestedQn = settingsRepository.current.defaultQuality
+                .takeIf { it > 0 }
+                ?: INITIAL_QN
+            when (val result = videoRepository.playUrl(bvid, cid, requestedQn)) {
                 is AppResult.Success -> {
                     val playUrl = result.value
+                    val preferredQn = settingsRepository.current.defaultQuality
+                    val selectedQn = preferredQn.takeIf { playUrl.sources.containsKey(it) }
+                        ?: playUrl.defaultQn
                     _state.update {
                         it.copy(
                             isLoading = false,
                             playUrl = playUrl,
-                            selectedQn = playUrl.defaultQn,
+                            selectedQn = selectedQn,
                             error = null,
                         )
                     }
