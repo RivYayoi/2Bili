@@ -31,6 +31,7 @@
  └── :shared:ui             Compose 主题、导航、页面、ViewModel、播放器 expect/actual
 :desktopApp                JVM 入口（Windows 桌面）
 :androidApp                Android 入口（仅在检测到 Android SDK 时参与构建）
+dist/                      统一产物目录：EXE / MSI / APK（gitignored）
 ```
 
 依赖方向严格单向：
@@ -103,7 +104,25 @@ Android（需要 SDK）：
 ./gradlew :androidApp:assembleDebug
 ```
 
-产物：`androidApp\build\outputs\apk\debug\androidApp-debug.apk`。
+最终产物：`dist\2bili-<version>-debug.apk`；中间文件仍在 `androidApp\build\outputs\apk\debug\`。
+
+### 统一产物目录
+
+所有最终产物统一放在仓库根目录的 `dist/`：
+
+| 产物 | 路径 |
+| --- | --- |
+| Windows EXE 安装包 | `dist\2bili-<version>.exe` |
+| Windows MSI 安装包 | `dist\2bili-<version>.msi` |
+| Android APK | `dist\2bili-<version>-debug.apk` |
+
+一键构建并收集（Windows 上构建 EXE/MSI，检测到 Android SDK 时同时构建 APK）：
+
+```powershell
+.\gradlew.bat packageAll -PvlcDir="C:\Program Files\VideoLAN\VLC"
+```
+
+只构建单个目标时，`:desktopApp:packageExe`、`:desktopApp:packageMsi`、`:androidApp:assembleDebug` 也会通过 finalizer 自动把对应产物复制到 `dist/`。`.\gradlew.bat cleanDist` 可清空该目录。构建和产物命名使用的版本号由 `gradle.properties` 的 `app.version` / `app.versionCode` 统一控制（关于页显示文字仍需同步更新）。
 
 `settings.gradle.kts` 会检测 Android SDK；没有 SDK 时 `:androidApp` 不会参与构建，共享模块也不会应用 AGP，因此桌面构建完全不需要 Android 工具链。
 
@@ -120,17 +139,20 @@ Android（需要 SDK）：
 # 安装包（二选一，需要 WiX Toolset 3.x 在 PATH 中）
 .\gradlew.bat :desktopApp:packageMsi
 .\gradlew.bat :desktopApp:packageExe
+
+# 构建 EXE + MSI，并自动复制到 dist/
+.\gradlew.bat packageAll -PvlcDir="C:\Program Files\VideoLAN\VLC"
 ```
 
 产物：
 
 | 任务 | 路径 |
 | --- | --- |
-| `createDistributable` | `desktopApp\build\compose\binaries\main\app\2bili\2bili.exe` |
-| `packageMsi` | `desktopApp\build\compose\binaries\main\msi\` |
-| `packageExe` | `desktopApp\build\compose\binaries\main\exe\` |
+| `createDistributable` | `desktopApp\build\compose\binaries\main\app\2bili\2bili.exe`（便携版目录，保留为中间产物） |
+| `packageMsi` | `dist\2bili-<version>.msi` |
+| `packageExe` | `dist\2bili-<version>.exe` |
 
-> 代码改动后重新打包请加 `--rerun-tasks`（或先 `clean`），否则 Compose 可能复用旧的 app image，导致安装包里仍是旧 jar：
+> `packageExe` / `packageMsi` 现在依赖 `createDistributable`，代码改动后会先刷新 app image，再打安装包。如果仍怀疑缓存，可加 `--rerun-tasks`：
 > `.\gradlew.bat :desktopApp:packageExe --rerun-tasks`
 
 便携版直接双击 `2bili.exe` 即可；整个 `2bili` 文件夹可以复制到其他机器。JRE 和 **VLC 都会打包进去**：
@@ -148,8 +170,8 @@ Android（需要 SDK）：
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `desktopApp\build\compose\binaries\main\exe\2bili-1.0.4.exe` | 132 MB | `779afb2034df8084d176e5fb38a6acb9d33e909a4b28661ae5e9ed04613cd15a` |
-| `desktopApp\build\compose\binaries\main\msi\2bili-1.0.4.msi` | 131 MB | `60e59ebd00145a309e6ec232619a1eb3f4a29cb7656ea3ab59df2244510dd412` |
+| `dist\2bili-1.0.4.exe` | 132 MB | `cd6ef8e4f6259aa146effb22816dedbbe270200d9e32aca28bac100018d5522b` |
+| `dist\2bili-1.0.4.msi` | 131 MB | `28bd9f53f64e2a4bc1f72f6ae23924a66aac217834d421d4b4b10f51cb33bdce` |
 
 1.0.4 在 1.0.3 基础上增加设置页、桌面首屏双栏布局，并把版本号递增到 1.0.4，避免覆盖安装时进入同版本维护模式。安装包会创建桌面快捷方式：`desktopApp/build.gradle.kts` 里的 `windows { shortcut = true }` 对应 jpackage 的 `--win-shortcut`，MSI 的 `Shortcut` 表已确认包含 `DesktopFolder | 2bili`。
 
@@ -165,7 +187,7 @@ GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `dist\2bili-1.0.4-debug.apk` | 19 MB | `305096068c0e989d603548739653b376723804d07f78bc71884bb78c1f101a63` |
+| `dist\2bili-1.0.4-debug.apk` | 19 MB | `146e45137506ccd4afe1e8c128a1f5d0b673495e6dbd1301267d1a0552ff096d` |
 
 - 包名 `tv.bili.android`，`versionCode 4`，`versionName 1.0.4`
 - `minSdk 26` / `targetSdk 36`，包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64`
@@ -202,7 +224,7 @@ GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传
 ./gradlew :desktopApp:packageMsi
 ```
 
-产物在 `desktopApp/build/compose/binaries/main/msi/`。
+最终产物在 `dist/`；`desktopApp/build/compose/binaries/main/msi/` 只是 jpackage 的中间输出目录。
 
 ## 关键设计
 

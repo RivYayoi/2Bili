@@ -9,6 +9,8 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val appVersion = providers.gradleProperty("app.version").get()
+
 kotlin {
     jvm("desktop") {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -159,7 +161,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "2bili"
-            packageVersion = "1.0.4"
+            packageVersion = appVersion
             description = "A third-party bilibili client"
             vendor = "2bili"
 

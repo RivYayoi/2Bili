@@ -6,6 +6,9 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val appVersion = providers.gradleProperty("app.version").get()
+val appVersionCode = providers.gradleProperty("app.versionCode").get().toInt()
+
 android {
     namespace = "tv.bili.android"
     compileSdk = 36
@@ -14,8 +17,8 @@ android {
         applicationId = "tv.bili.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.4"
+        versionCode = appVersionCode
+        versionName = appVersion
     }
 
     buildFeatures {

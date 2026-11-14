@@ -155,6 +155,7 @@ private fun SettingsContent(
                 }
 
                 SettingsSection("关于") {
+                    // Keep in sync with app.version in gradle.properties.
                     Text("2bili 1.0.4", style = MaterialTheme.typography.titleSmall)
                     Text(
                         text = "Kotlin Multiplatform + Compose Multiplatform",
