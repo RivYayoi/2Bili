@@ -33,6 +33,7 @@ class BiliApiClient(
         path: String,
         params: Map<String, String> = emptyMap(),
         wbi: Boolean = false,
+        withCookies: Boolean = true,
     ): AppResult<T> {
         var attempt = 0
 
@@ -40,7 +41,7 @@ class BiliApiClient(
             val finalParams = if (wbi) signer.sign(params) else params
             // CookieProvider is suspend, so resolve it before the (non-suspend)
             // request builder runs.
-            val cookie = cookies.cookieHeader()
+            val cookie = if (withCookies) cookies.cookieHeader() else null
 
             val response = try {
                 http.get(path) {

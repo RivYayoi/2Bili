@@ -8,6 +8,7 @@
 
 - 首页推荐流（下拉/滚动加载更多）
 - 视频详情（封面、简介、分 P 列表）；桌面宽屏使用双栏首屏，800×600 下无需滚动即可看到封面、标题和“播放第一页”
+- 评论区：热门/最新排序、游标分页、回复预览与展开、滚动自动加载更多；当前为只读，暂不支持发表评论/点赞
 - 播放页：DASH 音视频、画质切换、倍速、进度拖动
 - 弹幕：历史弹幕 + 实时 WebSocket 弹幕，Compose Canvas 滚动渲染
 - 搜索（关键词、分页）
@@ -19,7 +20,7 @@
 
 ## 明确不做
 
-直播、番剧、动态、离线缓存、投币/收藏/评论、多账号切换。
+直播、番剧、动态、离线缓存、投币/收藏、发表评论/点赞、多账号切换。
 
 ## 模块结构
 
@@ -170,10 +171,10 @@ Android（需要 SDK）：
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `dist\2bili-1.0.4.exe` | 132 MB | `cd6ef8e4f6259aa146effb22816dedbbe270200d9e32aca28bac100018d5522b` |
-| `dist\2bili-1.0.4.msi` | 131 MB | `28bd9f53f64e2a4bc1f72f6ae23924a66aac217834d421d4b4b10f51cb33bdce` |
+| `dist\2bili-1.0.4.exe` | 132 MB | `0d9337a11277a1520e82179106101566b6e24352ccde4cddc76edaad76be7cac` |
+| `dist\2bili-1.0.4.msi` | 131 MB | `ed0364d0ca4a12e933cb5608ca3df4f769ef6392f9c3fee293788497c099a321` |
 
-1.0.4 在 1.0.3 基础上增加设置页、桌面首屏双栏布局，并把版本号递增到 1.0.4，避免覆盖安装时进入同版本维护模式。安装包会创建桌面快捷方式：`desktopApp/build.gradle.kts` 里的 `windows { shortcut = true }` 对应 jpackage 的 `--win-shortcut`，MSI 的 `Shortcut` 表已确认包含 `DesktopFolder | 2bili`。
+1.0.4 在 1.0.3 基础上增加设置页、桌面首屏双栏布局和视频评论区，并把版本号递增到 1.0.4，避免覆盖安装时进入同版本维护模式。安装包会创建桌面快捷方式：`desktopApp/build.gradle.kts` 里的 `windows { shortcut = true }` 对应 jpackage 的 `--win-shortcut`，MSI 的 `Shortcut` 表已确认包含 `DesktopFolder | 2bili`。
 
 1.0.3 修复了安装版播放黑屏：jpackage 生成的精简 JRE 默认不含 `jdk.unsupported`，而 vlcj 的 `ByteBufferFactory` 需要 `sun.misc.Unsafe`，缺少时 VLC 会报 `vmem error: video format setup failure (no pictures)`。`desktopApp/build.gradle.kts` 里已显式加入 `modules("jdk.unsupported")`，不要删除。1.0.3 可直接覆盖升级 1.0.0–1.0.2；不要反复运行**同一版本**的安装包，Windows Installer 会进入维护模式，看起来像“没有反应”。
 
@@ -187,7 +188,7 @@ GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传
 
 | 文件 | 大小 | SHA-256 |
 | --- | --- | --- |
-| `dist\2bili-1.0.4-debug.apk` | 19 MB | `146e45137506ccd4afe1e8c128a1f5d0b673495e6dbd1301267d1a0552ff096d` |
+| `dist\2bili-1.0.4-debug.apk` | 19 MB | `eb717b715ade9448a1981486479e16cdcb74cfaab1704bd29935e6ca0e9e008e` |
 
 - 包名 `tv.bili.android`，`versionCode 4`，`versionName 1.0.4`
 - `minSdk 26` / `targetSdk 36`，包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64`
@@ -199,14 +200,16 @@ GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传
 本项目最终安装包在 Windows 10 + JDK 17 + Gradle 8.14.3 下构建；此前在 Linux + JDK 17 + WSLg 下也验证过窗口启动：
 
 - `./gradlew build` 通过（含全部桌面编译与测试）
-- `./gradlew :shared:data:desktopTest :shared:core:desktopTest` 通过（WBI 黄金向量、格式化、播放地址映射共 9 个用例）
+- `./gradlew :shared:data:desktopTest :shared:core:desktopTest` 通过（WBI 黄金向量、格式化、播放地址映射、评论映射与评论相对时间共 14 个用例）
 - `./gradlew :shared:ui:desktopTest` 通过（含设置本地持久化测试；VLC 测试在没有 `VLC_TEST_*` 环境变量时会自动跳过）
 - `./gradlew --version`（wrapper 自举）通过
 - `./gradlew :desktopApp:run` 能启动真实窗口（`xwininfo` 可见 `"2bili"`，约 1270×770），主线程进入 Compose 事件循环，首页请求与 LazyGrid 渲染无异常
 - 未安装 VLC 时会打印提示，应用继续运行；播放页显示错误而不是崩溃
 - 最终 app image（`desktopApp/build/compose/binaries/main/app/2bili/2bili.exe`）在 Windows 上启动成功，窗口标题为 `2bili`
 - 1.0.4 MSI 的 `Shortcut` 表已确认包含 `DesktopFolder | 2bili`；实际安装后的桌面快捷方式仍需在干净环境点一次安装验证
-- 桌面 800×600 实测：详情页首屏无需滚动即可看到封面、标题和“播放第一页”；首页齿轮可进入设置页
+- 桌面 800×600 实测：详情页首屏无需滚动即可看到封面、标题、“播放第一页”、简介和评论区头部；首页齿轮可进入设置页
+- 评论区实测：热门/最新切换正常；主评论首屏返回 20 条并带游标；滚动到底部自动加载后续页；回复预览、展开、分页和“加载更多回复”正常
+- 最终 app image 与安装包使用同一份 1.0.4 代码，启动后进入视频详情可正常显示评论区；评论请求不携带 buvid cookie，避免匿名请求被限流为 3 条
 - 1.0.3 EXE 在 Windows 上以管理员权限静默安装成功，覆盖旧 1.0.2；卸载项显示版本 1.0.3，安装目录 `C:\Program Files\2bili`
 - 安装后的 1.0.3 已人工点击实测：首页 → 详情 → 播放正常出画，弹幕滚动，音频轨道加载成功（`audioTracks=2`），VLC 日志无 `vmem error`
 - 播放页画质菜单可在 480P / 360P 间切换，切换后重新请求播放地址并以 `640x386` 出画；VLC 日志显示 `Received first picture`
@@ -243,6 +246,13 @@ GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传
 - `412`：直接返回 `AppError.RiskControl(412)`，UI 提示切换网络/稍后再试。
 - 所有 HTTP 都走 `BiliApiClient`，仓库层无重复逻辑。
 
+### 评论区
+
+- 主列表：`/x/v2/reply/wbi/main`，`mode=3` 热门、`mode=2` 最新；`pagination_str` 使用 `next_offset` 游标，首屏传 `{"offset":""}`。
+- 回复列表：`/x/v2/reply/reply`，`type=1`、`oid`、`root`、`pn`、`ps=20`、`nohot=0`。
+- 主评论请求显式 `withCookies=false`。实测匿名请求如果携带 buvid cookie，接口只返回 3 条评论且 `cursor.is_end=true`；不携带 cookie 可正常返回 20/19 条并带游标。回复接口不受此限制。
+- 评论区目前只读：支持浏览、热门/最新排序、游标分页、回复预览/展开/分页；发表评论和点赞需要额外的 POST 表单与 `bili_jct` CSRF，暂未实现。
+
 ### 播放器
 
 - 共享层只暴露 `PlayerController` 接口（domain）与两个 expect 函数（ui）：
@@ -272,7 +282,7 @@ GitHub Release（当前公开附件仍为 1.0.3；1.0.4 本地构建尚未上传
 - 弹幕轨道分配是轮询，不是严格防重叠；同屏弹幕很多时会叠字。
 - 历史弹幕一次性载入，超长视频会占用较多内存。
 - 未做播放进度记忆、未做多 P 自动连播。
-- 未做评论、点赞、投币、收藏、动态、直播、番剧、离线缓存。
+- 评论区只读，未做发表评论/点赞；未做投币、收藏、动态、直播、番剧、离线缓存。
 - 未做多账号；切换账号需要清除凭据后重新扫码。
 - 二维码状态轮询间隔 2s，登录成功后需要手动返回。
 - 桌面端未做全屏切换与快捷键（窗口缩放已适配）。

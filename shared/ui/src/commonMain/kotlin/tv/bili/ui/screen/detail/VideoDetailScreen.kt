@@ -12,12 +12,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,11 +33,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,9 +47,11 @@ import coil3.compose.AsyncImage
 import org.koin.compose.viewmodel.koinViewModel
 import tv.bili.core.format.formatCount
 import tv.bili.core.format.formatDuration
+import tv.bili.domain.model.CommentSort
 import tv.bili.domain.model.VideoDetail
 import tv.bili.domain.model.VideoPage
 import tv.bili.ui.component.ErrorView
+import tv.bili.ui.component.LoadMoreFooter
 import tv.bili.ui.component.LoadingState
 
 @Composable
@@ -69,6 +72,10 @@ fun VideoDetailScreen(
         onBack = onBack,
         onRetry = viewModel::retry,
         onPlay = onPlay,
+        onCommentSortChange = viewModel::setCommentSort,
+        onRetryComments = viewModel::retryComments,
+        onLoadMoreComments = viewModel::loadMoreComments,
+        onLoadReplies = viewModel::loadReplies,
     )
 }
 
@@ -79,6 +86,10 @@ private fun DetailContent(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onPlay: (cid: Long, title: String) -> Unit,
+    onCommentSortChange: (CommentSort) -> Unit,
+    onRetryComments: () -> Unit,
+    onLoadMoreComments: () -> Unit,
+    onLoadReplies: (Long) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -109,7 +120,12 @@ private fun DetailContent(
 
                 state.detail != null -> DetailBody(
                     detail = state.detail,
+                    comments = state.comments,
                     onPlay = onPlay,
+                    onCommentSortChange = onCommentSortChange,
+                    onRetryComments = onRetryComments,
+                    onLoadMoreComments = onLoadMoreComments,
+                    onLoadReplies = onLoadReplies,
                 )
             }
         }
@@ -119,7 +135,12 @@ private fun DetailContent(
 @Composable
 private fun DetailBody(
     detail: VideoDetail,
+    comments: CommentsUiState,
     onPlay: (cid: Long, title: String) -> Unit,
+    onCommentSortChange: (CommentSort) -> Unit,
+    onRetryComments: () -> Unit,
+    onLoadMoreComments: () -> Unit,
+    onLoadReplies: (Long) -> Unit,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
@@ -128,8 +149,34 @@ private fun DetailBody(
         // Desktop gets a two-column header so the cover, title, play button and
         // description all fit above the fold even at the 800x600 minimum size.
         val wide = maxWidth >= 720.dp
+        val listState = rememberLazyListState()
+
+        val shouldLoadMore by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                lastVisible >= layoutInfo.totalItemsCount - 3
+            }
+        }
+
+        LaunchedEffect(
+            shouldLoadMore,
+            comments.hasMore,
+            comments.isLoading,
+            comments.isLoadingMore,
+        ) {
+            if (shouldLoadMore &&
+                comments.items.isNotEmpty() &&
+                comments.hasMore &&
+                !comments.isLoading &&
+                !comments.isLoadingMore
+            ) {
+                onLoadMoreComments()
+            }
+        }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .widthIn(max = 1100.dp)
                 .fillMaxSize(),
@@ -154,6 +201,62 @@ private fun DetailBody(
                     key = { it.cid },
                 ) { page: VideoPage ->
                     PageRow(page = page, onClick = { onPlay(page.cid, page.title) })
+                }
+            }
+
+            item(key = "comments-header") {
+                CommentHeader(
+                    totalCount = comments.totalCount,
+                    sort = comments.sort,
+                    onSortChange = onCommentSortChange,
+                )
+            }
+
+            when {
+                comments.isLoading && comments.items.isEmpty() -> {
+                    item(key = "comments-loading") {
+                        CommentLoadingRow()
+                    }
+                }
+
+                comments.error != null && comments.items.isEmpty() -> {
+                    item(key = "comments-error") {
+                        CommentErrorRow(
+                            error = comments.error,
+                            onRetry = onRetryComments,
+                        )
+                    }
+                }
+
+                comments.items.isEmpty() -> {
+                    item(key = "comments-empty") {
+                        CommentEmptyRow()
+                    }
+                }
+
+                else -> {
+                    items(
+                        items = comments.items,
+                        key = { "comment-${it.rpid}" },
+                    ) { comment ->
+                        CommentCard(
+                            comment = comment,
+                            expandedReplies = comments.expandedReplies[comment.rpid],
+                            isLoadingReplies = comment.rpid in comments.loadingReplies,
+                            replyError = comments.replyErrors[comment.rpid],
+                            replyHasMore = comments.replyHasMore[comment.rpid] == true,
+                            onLoadReplies = { onLoadReplies(comment.rpid) },
+                        )
+                    }
+
+                    item(key = "comments-footer") {
+                        LoadMoreFooter(
+                            isLoading = comments.isLoadingMore,
+                            error = comments.error,
+                            hasMore = comments.hasMore,
+                            onRetry = onRetryComments,
+                        )
+                    }
                 }
             }
         }
