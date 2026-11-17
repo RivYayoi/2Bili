@@ -127,6 +127,30 @@ class VideoCard extends StatelessWidget {
   }
 }
 
+SliverGridDelegate videoGridDelegate(
+  BuildContext context,
+  double availableWidth,
+) {
+  const spacing = 12.0;
+  final rawCount = (availableWidth / 280).ceil();
+  final crossAxisCount = rawCount < 2 ? 2 : (rawCount > 8 ? 8 : rawCount);
+  final itemWidth =
+      (availableWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
+  final textScaler = MediaQuery.textScalerOf(context);
+  final theme = Theme.of(context);
+  final titleSize = theme.textTheme.bodyMedium?.fontSize ?? 14;
+  final metaSize = theme.textTheme.labelSmall?.fontSize ?? 11;
+  final titleHeight = textScaler.scale(titleSize) * 1.25;
+  final metaHeight = textScaler.scale(metaSize) * 1.45;
+  final textHeight = titleHeight * 2 + 6 + metaHeight + 4;
+  return SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: crossAxisCount,
+    mainAxisExtent: itemWidth * 9 / 16 + textHeight + 8,
+    crossAxisSpacing: spacing,
+    mainAxisSpacing: 16,
+  );
+}
+
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key});
 

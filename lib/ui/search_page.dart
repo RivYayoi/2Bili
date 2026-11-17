@@ -62,7 +62,10 @@ class _SearchPageState extends State<SearchPage> {
       _page = 1;
     });
     try {
-      final result = await context.read<BiliApi>().search(keyword: query, page: 1);
+      final result = await context.read<BiliApi>().search(
+        keyword: query,
+        page: 1,
+      );
       if (!mounted || generation != _generation) return;
       setState(() {
         _items.addAll(result.items);
@@ -91,9 +94,10 @@ class _SearchPageState extends State<SearchPage> {
       _error = null;
     });
     try {
-      final result = await context
-          .read<BiliApi>()
-          .search(keyword: query, page: page);
+      final result = await context.read<BiliApi>().search(
+        keyword: query,
+        page: page,
+      );
       if (!mounted || generation != _generation) return;
       setState(() {
         final seen = _items.map((item) => item.bvid).toSet();
@@ -140,7 +144,10 @@ class _SearchPageState extends State<SearchPage> {
                 decoration: const InputDecoration(
                   hintText: '搜索视频',
                   prefixIcon: Icon(Icons.search),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
               ),
             ),
@@ -165,37 +172,37 @@ class _SearchPageState extends State<SearchPage> {
     if (_items.isEmpty) {
       return const EmptyView(message: '没有找到相关视频');
     }
-    return CustomScrollView(
-      controller: _scrollController,
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          sliver: SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 280,
-              mainAxisExtent: 245,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 16,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gridWidth = constraints.maxWidth - 32;
+        return CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              sliver: SliverGrid.builder(
+                gridDelegate: videoGridDelegate(context, gridWidth),
+                itemCount: _items.length,
+                itemBuilder: (context, index) {
+                  final video = _items[index];
+                  return VideoCard(
+                    video: video,
+                    onTap: () => _openDetail(video),
+                  );
+                },
+              ),
             ),
-            itemCount: _items.length,
-            itemBuilder: (context, index) {
-              final video = _items[index];
-              return VideoCard(
-                video: video,
-                onTap: () => _openDetail(video),
-              );
-            },
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: LoadMoreFooter(
-            isLoading: _loadingMore,
-            error: _error,
-            hasMore: _hasMore,
-            onRetry: _loadMore,
-          ),
-        ),
-      ],
+            SliverToBoxAdapter(
+              child: LoadMoreFooter(
+                isLoading: _loadingMore,
+                error: _error,
+                hasMore: _hasMore,
+                onRetry: _loadMore,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

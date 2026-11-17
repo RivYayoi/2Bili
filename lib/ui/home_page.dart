@@ -192,38 +192,41 @@ class _HomePageState extends State<HomePage> {
     if (_items.isEmpty) {
       return EmptyView(message: '还没有推荐内容', onAction: _loadFirstPage);
     }
-    return RefreshIndicator(
-      onRefresh: _loadFirstPage,
-      child: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            sliver: SliverGrid.builder(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 280,
-                mainAxisExtent: 245,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 16,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gridWidth = constraints.maxWidth - 32;
+        return RefreshIndicator(
+          onRefresh: _loadFirstPage,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                sliver: SliverGrid.builder(
+                  gridDelegate: videoGridDelegate(context, gridWidth),
+                  itemCount: _items.length,
+                  itemBuilder: (context, index) {
+                    final video = _items[index];
+                    return VideoCard(
+                      video: video,
+                      onTap: () => _openDetail(video),
+                    );
+                  },
+                ),
               ),
-              itemCount: _items.length,
-              itemBuilder: (context, index) {
-                final video = _items[index];
-                return VideoCard(video: video, onTap: () => _openDetail(video));
-              },
-            ),
+              SliverToBoxAdapter(
+                child: LoadMoreFooter(
+                  isLoading: _loadingMore,
+                  error: _error,
+                  hasMore: _hasMore,
+                  onRetry: _loadMore,
+                ),
+              ),
+            ],
           ),
-          SliverToBoxAdapter(
-            child: LoadMoreFooter(
-              isLoading: _loadingMore,
-              error: _error,
-              hasMore: _hasMore,
-              onRetry: _loadMore,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
