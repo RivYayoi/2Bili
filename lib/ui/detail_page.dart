@@ -19,6 +19,7 @@ class VideoDetailPage extends StatefulWidget {
 
 class _VideoDetailPageState extends State<VideoDetailPage> {
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _commentsScrollController = ScrollController();
   VideoDetail? _detail;
   bool _loadingDetail = true;
   Object? _detailError;
@@ -43,18 +44,28 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _commentsScrollController.addListener(_onCommentsScroll);
     _loadDetail();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _commentsScrollController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
+    _maybeLoadMore(_scrollController);
+  }
+
+  void _onCommentsScroll() {
+    _maybeLoadMore(_commentsScrollController);
+  }
+
+  void _maybeLoadMore(ScrollController controller) {
+    if (!controller.hasClients) return;
+    final position = controller.position;
     if (position.pixels >= position.maxScrollExtent - 360) {
       _loadComments(reset: false);
     }
@@ -243,64 +254,24 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     }
     final detail = _detail;
     if (detail == null) return const EmptyView(message: '视频不存在');
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 760) {
+          return _buildWideBody(detail);
+        }
+        return _buildNarrowBody(detail);
+      },
+    );
+  }
+
+  Widget _buildNarrowBody(VideoDetail detail) {
     return RefreshIndicator(
       onRefresh: _loadDetail,
       child: CustomScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            sliver: SliverToBoxAdapter(
-              child: _DetailHeader(detail: detail, onPlay: _play),
-            ),
-          ),
-          if (detail.pages.length > 1) ...[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
-              sliver: SliverToBoxAdapter(
-                child: Text(
-                  '分P（${detail.pages.length}）',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverList.builder(
-                itemCount: detail.pages.length,
-                itemBuilder: (context, index) {
-                  final page = detail.pages[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      dense: true,
-                      leading: Text(
-                        'P${page.page}',
-                        style: const TextStyle(
-                          color: biliPink,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      title: Text(
-                        page.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Text(
-                        formatDuration(page.durationSec),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                      onTap: () => _play(page),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+          ..._infoSlivers(detail),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
             sliver: SliverToBoxAdapter(child: _commentHeader()),
@@ -309,6 +280,103 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildWideBody(VideoDetail detail) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 55,
+          child: RefreshIndicator(
+            onRefresh: _loadDetail,
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                ..._infoSlivers(detail),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 45,
+          child: RefreshIndicator(
+            onRefresh: () => _loadComments(reset: true),
+            child: CustomScrollView(
+              controller: _commentsScrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  sliver: SliverToBoxAdapter(child: _commentHeader()),
+                ),
+                ..._commentSlivers(),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _infoSlivers(VideoDetail detail) {
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        sliver: SliverToBoxAdapter(
+          child: _DetailHeader(detail: detail, onPlay: _play),
+        ),
+      ),
+      if (detail.pages.length > 1) ...[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              '分P（${detail.pages.length}）',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          sliver: SliverList.builder(
+            itemCount: detail.pages.length,
+            itemBuilder: (context, index) {
+              final page = detail.pages[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  dense: true,
+                  leading: Text(
+                    'P${page.page}',
+                    style: const TextStyle(
+                      color: biliPink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  title: Text(
+                    page.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Text(
+                    formatDuration(page.durationSec),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  onTap: () => _play(page),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ];
   }
 
   Widget _commentHeader() {
