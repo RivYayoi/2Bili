@@ -21,7 +21,6 @@ class VideoPlayerPanel extends StatefulWidget {
     required this.cid,
     required this.title,
     this.fullscreen = false,
-    this.startPositionMs = 0,
     this.onFullscreen,
     this.onExitFullscreen,
   });
@@ -30,9 +29,8 @@ class VideoPlayerPanel extends StatefulWidget {
   final int cid;
   final String title;
   final bool fullscreen;
-  final int startPositionMs;
   final VoidCallback? onFullscreen;
-  final ValueChanged<int>? onExitFullscreen;
+  final VoidCallback? onExitFullscreen;
 
   @override
   State<VideoPlayerPanel> createState() => VideoPlayerPanelState();
@@ -65,15 +63,11 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
   StreamSubscription<Danmaku>? _danmakuSubscription;
   int _loadGeneration = 0;
   int _danmakuGeneration = 0;
-  bool _initialPositionApplied = true;
-
-  int get positionMs => _positionMs;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initialPositionApplied = widget.startPositionMs <= 0;
     if (widget.fullscreen) unawaited(_enterLandscape());
     _player = Player(
       configuration: const PlayerConfiguration(
@@ -173,19 +167,6 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
     }
   }
 
-  void pause() {
-    _player.pause();
-  }
-
-  void play() {
-    _player.play();
-  }
-
-  void seekToMs(int value) {
-    if (value < 0) return;
-    _player.seek(Duration(milliseconds: value));
-  }
-
   Future<void> _startDanmaku() async {
     final generation = ++_danmakuGeneration;
     final cid = widget.cid;
@@ -220,7 +201,6 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
     _buffering = false;
     _dragging = false;
     _retrying = false;
-    _initialPositionApplied = widget.startPositionMs <= 0;
     setState(() {
       _loading = true;
       _error = null;
@@ -299,9 +279,7 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
       } catch (_) {}
     }
     try {
-      final start = _initialPositionApplied ? 0 : widget.startPositionMs;
-      final resume = start > 0;
-      await _player.open(Media(video, httpHeaders: headers), play: !resume);
+      await _player.open(Media(video, httpHeaders: headers));
       if (!mounted || generation != _loadGeneration) return;
       if (source?.isDash == true &&
           _audioUrls.isNotEmpty &&
@@ -313,17 +291,6 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
         } catch (_) {
           // Video without audio is still better than a failed playback.
         }
-      }
-      if (!mounted || generation != _loadGeneration) return;
-      _initialPositionApplied = true;
-      if (resume) {
-        await _waitForDuration();
-        if (!mounted || generation != _loadGeneration) return;
-        try {
-          await _player.seek(Duration(milliseconds: start));
-        } catch (_) {}
-        if (!mounted || generation != _loadGeneration) return;
-        await _player.play();
       }
       if (mounted && generation == _loadGeneration) {
         setState(() => _loading = false);
@@ -349,23 +316,6 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
       return;
     }
     setState(() => _error = '播放失败：$message');
-  }
-
-  Future<void> _waitForDuration() async {
-    if (_durationMs > 0) return;
-    final completer = Completer<void>();
-    late StreamSubscription<Duration> subscription;
-    subscription = _player.stream.duration.listen((value) {
-      if (value > Duration.zero && !completer.isCompleted) {
-        completer.complete();
-      }
-    });
-    final timer = Timer(const Duration(seconds: 5), () {
-      if (!completer.isCompleted) completer.complete();
-    });
-    await completer.future;
-    timer.cancel();
-    await subscription.cancel();
   }
 
   void _selectQuality(int qn) {
@@ -410,7 +360,7 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
   void _exitFullscreen() {
     final callback = widget.onExitFullscreen;
     if (callback != null) {
-      callback(_positionMs);
+      callback();
     } else {
       Navigator.of(context).maybePop();
     }

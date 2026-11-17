@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../core/bili_api.dart';
 import '../core/models.dart';
-import 'player_page.dart';
 import 'theme.dart';
 import 'video_player_panel.dart';
 import 'widgets.dart';
@@ -26,7 +25,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   final GlobalKey<VideoPlayerPanelState> _playerKey =
       GlobalKey<VideoPlayerPanelState>();
   VideoPage? _selectedPage;
-  bool _openingFullscreen = false;
+  bool _fullscreen = false;
   VideoDetail? _detail;
   bool _loadingDetail = true;
   Object? _detailError;
@@ -242,53 +241,46 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     }
   }
 
-  Future<void> _openFullscreen() async {
-    if (_openingFullscreen) return;
-    final page = _selectedPage;
-    final detail = _detail;
-    if (page == null || detail == null) return;
-    _openingFullscreen = true;
-    try {
-      final embedded = _playerKey.currentState;
-      final startPositionMs = embedded?.positionMs ?? 0;
-      embedded?.pause();
-      final result = await Navigator.of(context).push<int>(
-        MaterialPageRoute<int>(
-          builder: (_) => PlayerPage(
-            bvid: widget.bvid,
-            cid: page.cid,
-            title: detail.pages.length > 1
-                ? '${detail.title} - ${page.title}'
-                : detail.title,
-            startPositionMs: startPositionMs,
-          ),
-        ),
-      );
-      if (!mounted) return;
-      final current = _playerKey.currentState;
-      if (result != null) current?.seekToMs(result);
-      current?.play();
-    } finally {
-      _openingFullscreen = false;
-    }
+  void _enterFullscreen() {
+    if (_fullscreen) return;
+    setState(() => _fullscreen = true);
+  }
+
+  void _exitFullscreen() {
+    if (!_fullscreen) return;
+    setState(() => _fullscreen = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: '返回',
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
-        ),
-        title: Text(
-          _detail?.title ?? widget.title ?? '视频详情',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    return PopScope(
+      canPop: !_fullscreen,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _fullscreen) _exitFullscreen();
+      },
+      child: Scaffold(
+        appBar: _fullscreen
+            ? null
+            : AppBar(
+                leading: IconButton(
+                  tooltip: '返回',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                title: Text(
+                  _detail?.title ?? widget.title ?? '视频详情',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            _buildBody(),
+            if (_fullscreen) Positioned.fill(child: _buildFullscreenPlayer()),
+          ],
         ),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -447,6 +439,12 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         ),
       );
     }
+    if (_fullscreen) {
+      return const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ColoredBox(color: Colors.black),
+      );
+    }
     final title = detail.pages.length > 1
         ? '${detail.title} - ${page.title}'
         : detail.title;
@@ -459,8 +457,30 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
           bvid: widget.bvid,
           cid: page.cid,
           title: title,
-          onFullscreen: () => unawaited(_openFullscreen()),
+          onFullscreen: _enterFullscreen,
         ),
+      ),
+    );
+  }
+
+  Widget _buildFullscreenPlayer() {
+    final page = _selectedPage;
+    final detail = _detail;
+    if (page == null || detail == null) {
+      return const ColoredBox(color: Colors.black);
+    }
+    final title = detail.pages.length > 1
+        ? '${detail.title} - ${page.title}'
+        : detail.title;
+    return ColoredBox(
+      color: Colors.black,
+      child: VideoPlayerPanel(
+        key: _playerKey,
+        bvid: widget.bvid,
+        cid: page.cid,
+        title: title,
+        fullscreen: true,
+        onExitFullscreen: _exitFullscreen,
       ),
     );
   }
