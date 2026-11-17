@@ -22,7 +22,7 @@ class BiliImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url.isEmpty) {
-      return _placeholder();
+      return _placeholder(context);
     }
     return CachedNetworkImage(
       imageUrl: url,
@@ -30,18 +30,23 @@ class BiliImage extends StatelessWidget {
       fit: fit,
       width: width,
       height: height,
-      placeholder: (context, value) => _placeholder(),
-      errorWidget: (context, value, error) => _placeholder(),
+      placeholder: (context, value) => _placeholder(context),
+      errorWidget: (context, value, error) => _placeholder(context),
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: width,
       height: height,
-      color: appSurfaceVariant,
+      color: scheme.surfaceContainerHighest,
       alignment: Alignment.center,
-      child: const Icon(Icons.image_outlined, color: appMuted, size: 28),
+      child: Icon(
+        Icons.image_outlined,
+        color: scheme.onSurfaceVariant,
+        size: 28,
+      ),
     );
   }
 }
@@ -111,7 +116,9 @@ class VideoCard extends StatelessWidget {
               ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(color: appMuted),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -231,7 +238,9 @@ class LoadMoreFooter extends StatelessWidget {
         child: Center(
           child: Text(
             '没有更多了',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: appMuted),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       );
@@ -239,10 +248,7 @@ class LoadMoreFooter extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Center(
-        child: TextButton(
-          onPressed: onRetry,
-          child: const Text('加载更多'),
-        ),
+        child: TextButton(onPressed: onRetry, child: const Text('加载更多')),
       ),
     );
   }
@@ -262,15 +268,16 @@ class SortChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
       showCheckmark: false,
       selectedColor: biliPink,
-      backgroundColor: appSurfaceVariant,
+      backgroundColor: scheme.surfaceContainerHighest,
       labelStyle: TextStyle(
-        color: selected ? Colors.white : appMuted,
+        color: selected ? Colors.white : scheme.onSurfaceVariant,
         fontSize: 12,
       ),
       side: BorderSide.none,
@@ -293,17 +300,21 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ClipOval(
       child: SizedBox(
         width: size,
         height: size,
         child: url.isEmpty
             ? Container(
-                color: appSurfaceVariant,
+                color: scheme.surfaceContainerHighest,
                 alignment: Alignment.center,
                 child: Text(
                   name.isEmpty ? '?' : name.substring(0, 1),
-                  style: TextStyle(color: appMuted, fontSize: size * 0.35),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: size * 0.35,
+                  ),
                 ),
               )
             : BiliImage(url: url),
@@ -325,7 +336,11 @@ class UpBadge extends StatelessWidget {
       ),
       child: const Text(
         'UP',
-        style: TextStyle(color: biliPink, fontSize: 10, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: biliPink,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

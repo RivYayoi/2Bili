@@ -86,7 +86,8 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     final detail = _detail;
     if (detail == null) return;
     if (!reset && (_commentsLoading || _commentsLoadingMore)) return;
-    if (!reset && (!_commentsHasMore || _nextOffset == null || _commentsError != null)) {
+    if (!reset &&
+        (!_commentsHasMore || _nextOffset == null || _commentsError != null)) {
       return;
     }
     final generation = ++_commentsGeneration;
@@ -108,10 +109,10 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     });
     try {
       final page = await context.read<BiliApi>().comments(
-            aid: detail.aid,
-            sort: _sort,
-            offset: reset ? null : _nextOffset,
-          );
+        aid: detail.aid,
+        sort: _sort,
+        offset: reset ? null : _nextOffset,
+      );
       if (!mounted || generation != _commentsGeneration) return;
       setState(() {
         final existing = _comments.map((comment) => comment.rpid).toSet();
@@ -157,10 +158,10 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     });
     try {
       final result = await context.read<BiliApi>().replies(
-            aid: detail.aid,
-            root: root,
-            page: page,
-          );
+        aid: detail.aid,
+        root: root,
+        page: page,
+      );
       if (!mounted) return;
       setState(() {
         final preview = _comments
@@ -208,7 +209,9 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         builder: (_) => PlayerPage(
           bvid: widget.bvid,
           cid: page.cid,
-          title: detail.pages.length > 1 ? '${detail.title} - ${page.title}' : detail.title,
+          title: detail.pages.length > 1
+              ? '${detail.title} - ${page.title}'
+              : detail.title,
         ),
       ),
     );
@@ -248,7 +251,9 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            sliver: SliverToBoxAdapter(child: _DetailHeader(detail: detail, onPlay: _play)),
+            sliver: SliverToBoxAdapter(
+              child: _DetailHeader(detail: detail, onPlay: _play),
+            ),
           ),
           if (detail.pages.length > 1) ...[
             SliverPadding(
@@ -284,7 +289,10 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
                       ),
                       trailing: Text(
                         formatDuration(page.durationSec),
-                        style: const TextStyle(color: appMuted, fontSize: 12),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
                       onTap: () => _play(page),
                     ),
@@ -310,9 +318,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
           children: [
             Expanded(
               child: Text(
-                _commentTotal > 0
-                    ? '评论 ${formatCount(_commentTotal)}'
-                    : '评论',
+                _commentTotal > 0 ? '评论 ${formatCount(_commentTotal)}' : '评论',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -421,11 +427,7 @@ class _DetailHeader extends StatelessWidget {
         if (!wide) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              cover,
-              const SizedBox(height: 16),
-              info,
-            ],
+            children: [cover, const SizedBox(height: 16), info],
           );
         }
         return Row(
@@ -472,11 +474,15 @@ class _DetailInfo extends StatelessWidget {
             '${formatCount(detail.danmakuCount)}弹幕',
             formatDuration(detail.durationSec),
           ].join(' · '),
-          style: theme.textTheme.bodySmall?.copyWith(color: appMuted),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: detail.pages.isEmpty ? null : () => onPlay(detail.pages.first),
+          onPressed: detail.pages.isEmpty
+              ? null
+              : () => onPlay(detail.pages.first),
           icon: const Icon(Icons.play_arrow),
           label: const Text('播放第一页'),
         ),
@@ -485,7 +491,10 @@ class _DetailInfo extends StatelessWidget {
           detail.description.isEmpty ? '暂无简介' : detail.description,
           maxLines: compact ? 5 : null,
           overflow: compact ? TextOverflow.ellipsis : null,
-          style: theme.textTheme.bodyMedium?.copyWith(color: appMuted, height: 1.45),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.45,
+          ),
         ),
       ],
     );
@@ -523,9 +532,11 @@ class _CommentCardState extends State<_CommentCard> {
     final replies = widget.expandedReplies ?? comment.replies;
     final expanded = widget.expandedReplies != null;
     final canExpandMessage =
-        comment.message.length > 220 || '\n'.allMatches(comment.message).length > 6;
+        comment.message.length > 220 ||
+        '\n'.allMatches(comment.message).length > 6;
     final hasMoreReplies =
-        widget.replyHasMore || (!expanded && comment.replyCount > replies.length);
+        widget.replyHasMore ||
+        (!expanded && comment.replyCount > replies.length);
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
@@ -561,7 +572,9 @@ class _CommentCardState extends State<_CommentCard> {
                         const SizedBox(width: 8),
                         Text(
                           formatCommentTime(comment.createdAt),
-                          style: theme.textTheme.labelSmall?.copyWith(color: appMuted),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -574,7 +587,9 @@ class _CommentCardState extends State<_CommentCard> {
                     ),
                     if (canExpandMessage)
                       TextButton(
-                        onPressed: () => setState(() => _expandedMessage = !_expandedMessage),
+                        onPressed: () => setState(
+                          () => _expandedMessage = !_expandedMessage,
+                        ),
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: const Size(0, 28),
@@ -587,7 +602,9 @@ class _CommentCardState extends State<_CommentCard> {
                       children: [
                         Text(
                           '赞 ${formatCount(comment.likeCount)}',
-                          style: theme.textTheme.labelSmall?.copyWith(color: appMuted),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         if (comment.replyCount > 0) ...[
                           const SizedBox(width: 12),
@@ -611,8 +628,9 @@ class _CommentCardState extends State<_CommentCard> {
                           else
                             Text(
                               '${comment.replyCount} 条回复',
-                              style: theme.textTheme.labelSmall
-                                  ?.copyWith(color: appMuted),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                         ],
                       ],
@@ -627,17 +645,23 @@ class _CommentCardState extends State<_CommentCard> {
                         ),
                       ),
                     if (widget.isLoadingReplies)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
                         child: Row(
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            SizedBox(width: 8),
-                            Text('正在加载回复...', style: TextStyle(fontSize: 12, color: appMuted)),
+                            const SizedBox(width: 8),
+                            Text(
+                              '正在加载回复...',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -713,7 +737,9 @@ class _ReplyRow extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       formatCommentTime(reply.createdAt),
-                      style: theme.textTheme.labelSmall?.copyWith(color: appMuted),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -727,7 +753,9 @@ class _ReplyRow extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       '赞 ${formatCount(reply.likeCount)}',
-                      style: theme.textTheme.labelSmall?.copyWith(color: appMuted),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
               ],

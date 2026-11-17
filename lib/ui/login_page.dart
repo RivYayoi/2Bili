@@ -128,9 +128,7 @@ class _LoginPageState extends State<LoginPage> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: showAccount
-              ? _accountView(auth, user)
-              : _qrView(context),
+          child: showAccount ? _accountView(auth, user) : _qrView(context),
         ),
       ),
     );
@@ -153,7 +151,10 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height: 6),
         Text(
           user != null ? 'UID ${user.mid}' : '登录凭据已保存',
-          style: const TextStyle(color: appMuted, fontSize: 12),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
         ),
         const SizedBox(height: 24),
         FilledButton(
@@ -161,14 +162,8 @@ class _LoginPageState extends State<LoginPage> {
           child: const Text('返回'),
         ),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: _logout,
-          child: const Text('退出登录'),
-        ),
-        TextButton(
-          onPressed: _startQr,
-          child: const Text('切换账号'),
-        ),
+        TextButton(onPressed: _logout, child: const Text('退出登录')),
+        TextButton(onPressed: _startQr, child: const Text('切换账号')),
       ],
     );
   }
@@ -178,7 +173,7 @@ class _LoginPageState extends State<LoginPage> {
       QrStatus.success => const Color(0xFF4CAF50),
       QrStatus.scanned => biliBlue,
       QrStatus.expired => const Color(0xFFFF6B6B),
-      QrStatus.waiting => appMuted,
+      QrStatus.waiting => Theme.of(context).colorScheme.onSurfaceVariant,
     };
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -250,9 +245,12 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           '扫码后请在手机上点击确认',
-          style: TextStyle(color: appMuted, fontSize: 12),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
         ),
       ],
     );

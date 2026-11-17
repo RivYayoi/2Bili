@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/auth_controller.dart';
 import '../core/bili_api.dart';
 import '../core/models.dart';
+import '../core/settings_store.dart';
 import 'detail_page.dart';
 import 'login_page.dart';
 import 'search_page.dart';
@@ -109,27 +110,29 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _openSearch() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SearchPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SearchPage()));
   }
 
   void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
 
   void _openLogin() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const LoginPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const LoginPage()));
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
+    final settings = context.watch<SettingsStore>();
     final user = auth.user;
+    final isLight =
+        settings.themeMode == AppThemeMode.light ||
+        (settings.themeMode == AppThemeMode.system &&
+            MediaQuery.platformBrightnessOf(context) == Brightness.light);
     return Scaffold(
       appBar: AppBar(
         title: const Text('推荐'),
@@ -138,6 +141,15 @@ class _HomePageState extends State<HomePage> {
             tooltip: '搜索',
             onPressed: _openSearch,
             icon: const Icon(Icons.search),
+          ),
+          IconButton(
+            tooltip: isLight ? '切换深色模式' : '切换浅色模式',
+            onPressed: () => settings.setThemeMode(
+              isLight ? AppThemeMode.dark : AppThemeMode.light,
+            ),
+            icon: Icon(
+              isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+            ),
           ),
           IconButton(
             tooltip: '设置',
@@ -198,10 +210,7 @@ class _HomePageState extends State<HomePage> {
               itemCount: _items.length,
               itemBuilder: (context, index) {
                 final video = _items[index];
-                return VideoCard(
-                  video: video,
-                  onTap: () => _openDetail(video),
-                );
+                return VideoCard(video: video, onTap: () => _openDetail(video));
               },
             ),
           ),

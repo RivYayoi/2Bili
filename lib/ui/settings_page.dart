@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/auth_controller.dart';
 import '../core/settings_store.dart';
+import 'danmaku_settings.dart';
 import 'login_page.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -27,6 +28,59 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          _Section(
+            title: '外观',
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(switch (settings.themeMode) {
+                          AppThemeMode.system => Icons.brightness_auto_outlined,
+                          AppThemeMode.light => Icons.light_mode_outlined,
+                          AppThemeMode.dark => Icons.dark_mode_outlined,
+                        }),
+                        const SizedBox(width: 12),
+                        const Expanded(child: Text('主题')),
+                        Text(
+                          settings.themeMode.label,
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<AppThemeMode>(
+                        segments: AppThemeMode.values
+                            .map(
+                              (mode) => ButtonSegment<AppThemeMode>(
+                                value: mode,
+                                label: Text(mode.label),
+                              ),
+                            )
+                            .toList(),
+                        selected: {settings.themeMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (selection) {
+                          settings.setThemeMode(selection.first);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           _Section(
             title: '播放',
             children: [
@@ -56,29 +110,9 @@ class SettingsPage extends StatelessWidget {
           _Section(
             title: '弹幕',
             children: [
-              SwitchListTile(
-                title: const Text('显示弹幕'),
-                subtitle: const Text('播放时在视频上叠加弹幕'),
-                value: settings.danmakuEnabled,
-                onChanged: settings.setDanmakuEnabled,
-              ),
-              _SliderTile(
-                title: '弹幕透明度',
-                valueLabel: '${(settings.danmakuOpacity * 100).round()}%',
-                value: settings.danmakuOpacity,
-                min: 0.2,
-                max: 1.0,
-                divisions: 8,
-                onChanged: settings.setDanmakuOpacity,
-              ),
-              _SliderTile(
-                title: '弹幕字号',
-                valueLabel: '${(settings.danmakuFontScale * 100).round()}%',
-                value: settings.danmakuFontScale,
-                min: 0.7,
-                max: 1.5,
-                divisions: 8,
-                onChanged: settings.setDanmakuFontScale,
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: DanmakuSettingsControls(),
               ),
             ],
           ),
@@ -99,9 +133,9 @@ class SettingsPage extends StatelessWidget {
                     onPressed: () async {
                       await context.read<AuthController>().logout();
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已退出登录')),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(const SnackBar(content: Text('已退出登录')));
                       }
                     },
                     child: const Text('退出登录'),
@@ -138,9 +172,8 @@ class SettingsPage extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   settings.reset();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('已恢复默认设置')),
-                  );
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(const SnackBar(content: Text('已恢复默认设置')));
                 },
               ),
             ],
@@ -166,10 +199,8 @@ class _Section extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             title,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: biliPink,
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(context).textTheme.labelLarge
+                ?.copyWith(color: biliPink, fontWeight: FontWeight.w600),
           ),
         ),
         Card(
@@ -177,54 +208,6 @@ class _Section extends StatelessWidget {
           child: Column(children: children),
         ),
       ],
-    );
-  }
-}
-
-class _SliderTile extends StatelessWidget {
-  const _SliderTile({
-    required this.title,
-    required this.valueLabel,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String valueLabel;
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(title)),
-              Text(
-                valueLabel,
-                style: const TextStyle(color: appMuted, fontSize: 12),
-              ),
-            ],
-          ),
-          Slider(
-            value: value.clamp(min, max).toDouble(),
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
     );
   }
 }

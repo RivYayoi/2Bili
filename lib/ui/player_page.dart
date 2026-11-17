@@ -10,7 +10,7 @@ import '../core/danmaku_service.dart';
 import '../core/models.dart';
 import '../core/settings_store.dart';
 import 'danmaku_overlay.dart';
-import 'theme.dart';
+import 'danmaku_settings.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({
@@ -63,26 +63,38 @@ class _PlayerPageState extends State<PlayerPage> {
       ),
     );
     _videoController = VideoController(_player);
-    _subscriptions.add(_player.stream.playing.listen((value) {
-      if (mounted) setState(() => _playing = value);
-    }));
-    _subscriptions.add(_player.stream.buffering.listen((value) {
-      if (mounted) setState(() => _buffering = value);
-    }));
-    _subscriptions.add(_player.stream.position.listen((value) {
-      if (mounted && !_dragging) {
-        setState(() => _positionMs = value.inMilliseconds);
-      }
-    }));
-    _subscriptions.add(_player.stream.duration.listen((value) {
-      if (mounted) setState(() => _durationMs = value.inMilliseconds);
-    }));
-    _subscriptions.add(_player.stream.completed.listen((value) {
-      if (mounted && value) setState(() => _playing = false);
-    }));
-    _subscriptions.add(_player.stream.error.listen((value) {
-      if (value.isNotEmpty) _handlePlayerError(value);
-    }));
+    _subscriptions.add(
+      _player.stream.playing.listen((value) {
+        if (mounted) setState(() => _playing = value);
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.buffering.listen((value) {
+        if (mounted) setState(() => _buffering = value);
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.position.listen((value) {
+        if (mounted && !_dragging) {
+          setState(() => _positionMs = value.inMilliseconds);
+        }
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.duration.listen((value) {
+        if (mounted) setState(() => _durationMs = value.inMilliseconds);
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.completed.listen((value) {
+        if (mounted && value) setState(() => _playing = false);
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.error.listen((value) {
+        if (value.isNotEmpty) _handlePlayerError(value);
+      }),
+    );
     _startDanmaku();
     _load();
   }
@@ -103,10 +115,9 @@ class _PlayerPageState extends State<PlayerPage> {
     final history = await _danmakuService.history(widget.cid);
     if (!mounted) return;
     _danmakuBuffer.addAll(history);
-    _danmakuSubscription = _danmakuService.live(widget.cid).listen(
-      (item) => _danmakuBuffer.addAll([item]),
-      onError: (_) {},
-    );
+    _danmakuSubscription = _danmakuService
+        .live(widget.cid)
+        .listen((item) => _danmakuBuffer.addAll([item]), onError: (_) {});
   }
 
   Future<void> _load({int? qn}) async {
@@ -118,10 +129,10 @@ class _PlayerPageState extends State<PlayerPage> {
     });
     try {
       final data = await context.read<BiliApi>().playUrl(
-            bvid: widget.bvid,
-            cid: widget.cid,
-            qn: requested,
-          );
+        bvid: widget.bvid,
+        cid: widget.cid,
+        qn: requested,
+      );
       if (!mounted) return;
       final source = data.sourceFor(data.selectedQn);
       if (source == null) throw const BiliException(-1, '没有可用的播放地址');
@@ -142,10 +153,10 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _openSource(PlaySource source) async {
     _source = source;
-    _videoUrls = [source.videoUrl, ...source.backupVideoUrls]
-        .where((url) => url.isNotEmpty)
-        .toSet()
-        .toList();
+    _videoUrls = [
+      source.videoUrl,
+      ...source.backupVideoUrls,
+    ].where((url) => url.isNotEmpty).toSet().toList();
     _audioUrls = [
       if (source.audioUrl != null) source.audioUrl!,
       ...source.backupAudioUrls,
@@ -248,7 +259,9 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsStore>();
-    final shownPosition = _dragging ? (_dragValue * _durationMs).round() : _positionMs;
+    final shownPosition = _dragging
+        ? (_dragValue * _durationMs).round()
+        : _positionMs;
     final progress = _durationMs <= 0
         ? 0.0
         : (shownPosition / _durationMs).clamp(0.0, 1.0).toDouble();
@@ -269,6 +282,12 @@ class _PlayerPageState extends State<PlayerPage> {
             enabled: settings.danmakuEnabled,
             opacity: settings.danmakuOpacity,
             fontScale: settings.danmakuFontScale,
+            speed: settings.danmakuSpeed,
+            area: settings.danmakuArea,
+            stroke: settings.danmakuStroke,
+            showScroll: settings.danmakuShowScroll,
+            showTop: settings.danmakuShowTop,
+            showBottom: settings.danmakuShowBottom,
           ),
           Positioned(
             left: 0,
@@ -291,7 +310,18 @@ class _PlayerPageState extends State<PlayerPage> {
                         widget.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: '弹幕设置',
+                      onPressed: () => showDanmakuSettingsSheet(context),
+                      icon: const Icon(
+                        Icons.subtitles_outlined,
+                        color: Colors.white,
                       ),
                     ),
                     _QualityMenu(
@@ -305,16 +335,14 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           ),
           if (_loading || _buffering)
-            const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            ),
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
           if (_error != null)
             Center(
               child: Container(
                 margin: const EdgeInsets.all(24),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: appSurface.withValues(alpha: 0.94),
+                  color: Colors.black.withValues(alpha: 0.94),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -361,7 +389,8 @@ class _PlayerPageState extends State<PlayerPage> {
                       child: Slider(
                         value: progress,
                         onChangeStart: (_) => setState(() => _dragging = true),
-                        onChanged: (value) => setState(() => _dragValue = value),
+                        onChanged: (value) =>
+                            setState(() => _dragValue = value),
                         onChangeEnd: (value) {
                           _seekTo(value);
                           setState(() => _dragging = false);
@@ -385,10 +414,16 @@ class _PlayerPageState extends State<PlayerPage> {
                         PopupMenuItem(value: 2.0, child: Text('2.0x')),
                       ],
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 12,
+                        ),
                         child: Text(
                           '${_speed}x',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ),
