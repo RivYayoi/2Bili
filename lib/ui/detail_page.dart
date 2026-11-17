@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../core/bili_api.dart';
 import '../core/models.dart';
 import 'player_page.dart';
 import 'theme.dart';
+import 'video_player_panel.dart';
 import 'widgets.dart';
 
 class VideoDetailPage extends StatefulWidget {
@@ -20,6 +23,10 @@ class VideoDetailPage extends StatefulWidget {
 class _VideoDetailPageState extends State<VideoDetailPage> {
   final ScrollController _scrollController = ScrollController();
   final ScrollController _commentsScrollController = ScrollController();
+  final GlobalKey<VideoPlayerPanelState> _playerKey =
+      GlobalKey<VideoPlayerPanelState>();
+  VideoPage? _selectedPage;
+  bool _openingFullscreen = false;
   VideoDetail? _detail;
   bool _loadingDetail = true;
   Object? _detailError;
@@ -79,8 +86,17 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     try {
       final detail = await context.read<BiliApi>().detail(widget.bvid);
       if (!mounted) return;
+      VideoPage? selected;
+      for (final page in detail.pages) {
+        if (page.cid == _selectedPage?.cid) {
+          selected = page;
+          break;
+        }
+      }
+      selected ??= detail.pages.isEmpty ? null : detail.pages.first;
       setState(() {
         _detail = detail;
+        _selectedPage = selected;
         _loadingDetail = false;
       });
       await _loadComments(reset: true);
@@ -212,20 +228,49 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     }
   }
 
-  void _play(VideoPage page) {
-    final detail = _detail;
-    if (detail == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PlayerPage(
-          bvid: widget.bvid,
-          cid: page.cid,
-          title: detail.pages.length > 1
-              ? '${detail.title} - ${page.title}'
-              : detail.title,
+  void _selectPage(VideoPage page) {
+    if (_selectedPage?.cid == page.cid) return;
+    setState(() => _selectedPage = page);
+    if (_scrollController.hasClients) {
+      unawaited(
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
         ),
-      ),
-    );
+      );
+    }
+  }
+
+  Future<void> _openFullscreen() async {
+    if (_openingFullscreen) return;
+    final page = _selectedPage;
+    final detail = _detail;
+    if (page == null || detail == null) return;
+    _openingFullscreen = true;
+    try {
+      final embedded = _playerKey.currentState;
+      final startPositionMs = embedded?.positionMs ?? 0;
+      embedded?.pause();
+      final result = await Navigator.of(context).push<int>(
+        MaterialPageRoute<int>(
+          builder: (_) => PlayerPage(
+            bvid: widget.bvid,
+            cid: page.cid,
+            title: detail.pages.length > 1
+                ? '${detail.title} - ${page.title}'
+                : detail.title,
+            startPositionMs: startPositionMs,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      final current = _playerKey.currentState;
+      if (result != null) current?.seekToMs(result);
+      current?.play();
+    } finally {
+      _openingFullscreen = false;
+    }
   }
 
   @override
@@ -327,7 +372,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
         sliver: SliverToBoxAdapter(
-          child: _DetailHeader(detail: detail, onPlay: _play),
+          child: _DetailHeader(detail: detail, player: _buildPlayer(detail)),
         ),
       ),
       if (detail.pages.length > 1) ...[
@@ -346,8 +391,11 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
             itemCount: detail.pages.length,
             itemBuilder: (context, index) {
               final page = detail.pages[index];
+              final selected = _selectedPage?.cid == page.cid;
+              final theme = Theme.of(context);
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
+                color: selected ? theme.colorScheme.primaryContainer : null,
                 child: ListTile(
                   dense: true,
                   leading: Text(
@@ -362,14 +410,23 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: Text(
-                    formatDuration(page.durationSec),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (selected) ...[
+                        const Icon(Icons.volume_up, size: 16, color: biliPink),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        formatDuration(page.durationSec),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  onTap: () => _play(page),
+                  onTap: () => _selectPage(page),
                 ),
               );
             },
@@ -377,6 +434,35 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
         ),
       ],
     ];
+  }
+
+  Widget _buildPlayer(VideoDetail detail) {
+    final page = _selectedPage;
+    if (page == null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: BiliImage(url: detail.coverUrl),
+        ),
+      );
+    }
+    final title = detail.pages.length > 1
+        ? '${detail.title} - ${page.title}'
+        : detail.title;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: VideoPlayerPanel(
+          key: _playerKey,
+          bvid: widget.bvid,
+          cid: page.cid,
+          title: title,
+          onFullscreen: () => unawaited(_openFullscreen()),
+        ),
+      ),
+    );
   }
 
   Widget _commentHeader() {
@@ -474,34 +560,27 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
 }
 
 class _DetailHeader extends StatelessWidget {
-  const _DetailHeader({required this.detail, required this.onPlay});
+  const _DetailHeader({required this.detail, required this.player});
 
   final VideoDetail detail;
-  final ValueChanged<VideoPage> onPlay;
+  final Widget player;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 720;
-        final cover = ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: BiliImage(url: detail.coverUrl),
-          ),
-        );
-        final info = _DetailInfo(detail: detail, onPlay: onPlay, compact: wide);
+        final info = _DetailInfo(detail: detail, compact: wide);
         if (!wide) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [cover, const SizedBox(height: 16), info],
+            children: [player, const SizedBox(height: 16), info],
           );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 45, child: cover),
+            Expanded(flex: 45, child: player),
             const SizedBox(width: 24),
             Expanded(flex: 55, child: info),
           ],
@@ -512,14 +591,9 @@ class _DetailHeader extends StatelessWidget {
 }
 
 class _DetailInfo extends StatelessWidget {
-  const _DetailInfo({
-    required this.detail,
-    required this.onPlay,
-    required this.compact,
-  });
+  const _DetailInfo({required this.detail, required this.compact});
 
   final VideoDetail detail;
-  final ValueChanged<VideoPage> onPlay;
   final bool compact;
 
   @override
@@ -545,14 +619,6 @@ class _DetailInfo extends StatelessWidget {
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
-        ),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: detail.pages.isEmpty
-              ? null
-              : () => onPlay(detail.pages.first),
-          icon: const Icon(Icons.play_arrow),
-          label: const Text('播放第一页'),
         ),
         const SizedBox(height: 12),
         Text(
