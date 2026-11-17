@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +30,7 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> {
+class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   late final Player _player;
   late final VideoController _videoController;
   final DanmakuService _danmakuService = DanmakuService();
@@ -56,6 +58,8 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_enterLandscape());
     _player = Player(
       configuration: const PlayerConfiguration(
         title: '2bili',
@@ -101,6 +105,8 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_restoreOrientation());
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
@@ -109,6 +115,28 @@ class _PlayerPageState extends State<PlayerPage> {
     _danmakuBuffer.dispose();
     unawaited(_player.dispose());
     super.dispose();
+  }
+
+  Future<void> _enterLandscape() async {
+    if (!Platform.isAndroid) return;
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  Future<void> _restoreOrientation() async {
+    if (!Platform.isAndroid) return;
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (Platform.isAndroid && state == AppLifecycleState.resumed) {
+      unawaited(_enterLandscape());
+    }
   }
 
   Future<void> _startDanmaku() async {
