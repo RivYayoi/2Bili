@@ -6,7 +6,7 @@ import 'models.dart';
 
 class AuthStore {
   AuthStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
@@ -31,6 +31,8 @@ class AuthStore {
             sessData: asString(map['sessData']),
             biliJct: asString(map['biliJct']),
             dedeUserId: asString(map['dedeUserId']),
+            dedeUserIdCkMd5: asString(map['dedeUserIdCkMd5']),
+            sid: asString(map['sid']),
             refreshToken: asString(map['refreshToken']),
           );
         }
@@ -56,6 +58,8 @@ class AuthStore {
           'sessData': value.sessData,
           'biliJct': value.biliJct,
           'dedeUserId': value.dedeUserId,
+          'dedeUserIdCkMd5': value.dedeUserIdCkMd5,
+          'sid': value.sid,
           'refreshToken': value.refreshToken,
         }),
       );
@@ -76,8 +80,12 @@ class AuthStore {
     buvid3 = value3;
     buvid4 = value4;
     try {
-      if (value3.isNotEmpty) await _storage.write(key: _buvid3Key, value: value3);
-      if (value4.isNotEmpty) await _storage.write(key: _buvid4Key, value: value4);
+      if (value3.isNotEmpty) {
+        await _storage.write(key: _buvid3Key, value: value3);
+      }
+      if (value4.isNotEmpty) {
+        await _storage.write(key: _buvid4Key, value: value4);
+      }
     } catch (_) {}
   }
 
@@ -88,6 +96,12 @@ class AuthStore {
       parts.add('SESSDATA=${current.sessData}');
       parts.add('bili_jct=${current.biliJct}');
       parts.add('DedeUserID=${current.dedeUserId}');
+      if (current.dedeUserIdCkMd5.isNotEmpty) {
+        parts.add('DedeUserID__ckMd5=${current.dedeUserIdCkMd5}');
+      }
+      if (current.sid.isNotEmpty) {
+        parts.add('sid=${current.sid}');
+      }
     }
     if (buvid3.isNotEmpty) parts.add('buvid3=$buvid3');
     if (buvid4.isNotEmpty) parts.add('buvid4=$buvid4');

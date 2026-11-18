@@ -108,11 +108,11 @@ class VideoPage {
   final int durationSec;
 
   factory VideoPage.fromJson(Map<String, dynamic> json) => VideoPage(
-        cid: asInt(json['cid']),
-        page: asInt(json['page'], 1),
-        title: asString(json['part'], 'P${asInt(json['page'], 1)}'),
-        durationSec: asInt(json['duration']),
-      );
+    cid: asInt(json['cid']),
+    page: asInt(json['page'], 1),
+    title: asString(json['part'], 'P${asInt(json['page'], 1)}'),
+    durationSec: asInt(json['duration']),
+  );
 }
 
 class VideoDetail {
@@ -172,8 +172,9 @@ class VideoDetail {
       description: asString(json['desc']),
       durationSec: asInt(json['duration']),
       ownerName: owner is Map ? asString(owner['name']) : '',
-      ownerFaceUrl:
-          owner is Map ? normalizeBiliUrl(asString(owner['face'])) : '',
+      ownerFaceUrl: owner is Map
+          ? normalizeBiliUrl(asString(owner['face']))
+          : '',
       viewCount: stat is Map ? asInt(stat['view']) : 0,
       danmakuCount: stat is Map ? asInt(stat['danmaku']) : 0,
       pages: pages,
@@ -220,9 +221,14 @@ class PlayData {
   final int selectedQn;
 
   PlaySource? sourceFor(int qn) =>
-      sources[qn] ?? sources[selectedQn] ?? (sources.isEmpty ? null : sources.values.first);
+      sources[qn] ??
+      sources[selectedQn] ??
+      (sources.isEmpty ? null : sources.values.first);
 
-  factory PlayData.fromJson(Map<String, dynamic> json, Map<String, String> headers) {
+  factory PlayData.fromJson(
+    Map<String, dynamic> json,
+    Map<String, String> headers,
+  ) {
     final quality = asInt(json['quality']);
     final acceptQuality = <int>[];
     final acceptDescription = <String>[];
@@ -367,7 +373,10 @@ int _audioPriority(int id) {
   }
 }
 
-List<String> _orderedUrls(Map<String, dynamic> stream, {required bool preferDirect}) {
+List<String> _orderedUrls(
+  Map<String, dynamic> stream, {
+  required bool preferDirect,
+}) {
   final base = normalizeBiliUrl(asString(stream['baseUrl']));
   final backups = <String>[];
   final rawBackups = stream['backupUrl'];
@@ -490,7 +499,9 @@ class VideoComment {
       userName: member is Map
           ? asString(member['uname'], '匿名用户').ifEmpty('匿名用户')
           : '匿名用户',
-      avatarUrl: member is Map ? normalizeBiliUrl(asString(member['avatar'])) : '',
+      avatarUrl: member is Map
+          ? normalizeBiliUrl(asString(member['avatar']))
+          : '',
       message: content is Map ? asString(content['message']) : '',
       likeCount: asInt(json['like']),
       createdAt: asInt(json['ctime']),
@@ -550,12 +561,16 @@ class Credential {
     required this.sessData,
     required this.biliJct,
     required this.dedeUserId,
+    this.dedeUserIdCkMd5 = '',
+    this.sid = '',
     this.refreshToken = '',
   });
 
   final String sessData;
   final String biliJct;
   final String dedeUserId;
+  final String dedeUserIdCkMd5;
+  final String sid;
   final String refreshToken;
 }
 
@@ -581,11 +596,7 @@ class QrTicket {
 enum QrStatus { waiting, scanned, expired, success }
 
 class QrPoll {
-  const QrPoll({
-    required this.status,
-    required this.message,
-    this.credential,
-  });
+  const QrPoll({required this.status, required this.message, this.credential});
 
   final QrStatus status;
   final String message;
@@ -662,7 +673,9 @@ int? parseDurationToSeconds(String raw) {
   final direct = int.tryParse(text);
   if (direct != null) return direct;
   final parts = text.split(':').map(int.tryParse).toList();
-  if (parts.any((part) => part == null) || parts.length < 2 || parts.length > 3) {
+  if (parts.any((part) => part == null) ||
+      parts.length < 2 ||
+      parts.length > 3) {
     return null;
   }
   final values = parts.cast<int>();

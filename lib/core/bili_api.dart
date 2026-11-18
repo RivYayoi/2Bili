@@ -9,7 +9,7 @@ import 'wbi.dart';
 
 class BiliApi {
   BiliApi({required this.auth, http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final AuthStore auth;
   final http.Client _client;
@@ -75,6 +75,7 @@ class BiliApi {
     bool includeCredential = true,
     bool allowNonZero = false,
     int attempt = 0,
+    void Function(http.Response response)? onResponse,
   }) async {
     final query = <String, String>{...?params};
     String? signedQuery;
@@ -86,10 +87,9 @@ class BiliApi {
 
     final uri = signedQuery != null
         ? Uri.parse('$base$path?$signedQuery')
-        : Uri.parse(base).replace(
-            path: path,
-            queryParameters: query.isEmpty ? null : query,
-          );
+        : Uri.parse(
+            base,
+          ).replace(path: path, queryParameters: query.isEmpty ? null : query);
 
     final headers = <String, String>{...requestHeaders};
     if (withCookies) {
@@ -112,10 +112,7 @@ class BiliApi {
       throw const BiliException(412, 'HTTP 412');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw BiliException(
-        response.statusCode,
-        'HTTP ${response.statusCode}',
-      );
+      throw BiliException(response.statusCode, 'HTTP ${response.statusCode}');
     }
 
     dynamic decoded;
@@ -144,11 +141,13 @@ class BiliApi {
         includeCredential: includeCredential,
         allowNonZero: allowNonZero,
         attempt: attempt + 1,
+        onResponse: onResponse,
       );
     }
     if (code != 0 && !allowNonZero) {
       throw BiliException(code, asString(decoded['message']));
     }
+    onResponse?.call(response);
     return decoded['data'];
   }
 
@@ -156,7 +155,10 @@ class BiliApi {
     final now = DateTime.now();
     final cached = _mixinKey;
     final expiry = _mixinKeyExpiry;
-    if (!forceRefresh && cached != null && expiry != null && now.isBefore(expiry)) {
+    if (!forceRefresh &&
+        cached != null &&
+        expiry != null &&
+        now.isBefore(expiry)) {
       return cached;
     }
 
@@ -181,10 +183,7 @@ class BiliApi {
       subKey = null;
     }
 
-    if (imgKey == null ||
-        subKey == null ||
-        imgKey.isEmpty ||
-        subKey.isEmpty) {
+    if (imgKey == null || subKey == null || imgKey.isEmpty || subKey.isEmpty) {
       try {
         final response = await _client
             .get(Uri.parse('https://www.bilibili.com'), headers: requestHeaders)
@@ -202,10 +201,7 @@ class BiliApi {
       } catch (_) {}
     }
 
-    if (imgKey == null ||
-        subKey == null ||
-        imgKey.isEmpty ||
-        subKey.isEmpty) {
+    if (imgKey == null || subKey == null || imgKey.isEmpty || subKey.isEmpty) {
       throw const BiliException(-1, '无法获取 WBI 签名密钥');
     }
 
@@ -222,10 +218,7 @@ class BiliApi {
     return dot > 0 ? name.substring(0, dot) : name;
   }
 
-  Future<VideoPageResult> recommend({
-    int page = 1,
-    int pageSize = 20,
-  }) async {
+  Future<VideoPageResult> recommend({int page = 1, int pageSize = 20}) async {
     try {
       final data = await _request(
         apiBase,
@@ -254,10 +247,7 @@ class BiliApi {
     return popular(page: page, pageSize: pageSize);
   }
 
-  Future<VideoPageResult> popular({
-    int page = 1,
-    int pageSize = 20,
-  }) async {
+  Future<VideoPageResult> popular({int page = 1, int pageSize = 20}) async {
     final data = await _request(
       apiBase,
       '/x/web-interface/popular',
@@ -310,7 +300,8 @@ class BiliApi {
     }
     var result = PlayData.fromJson(data, headers);
     final requestedQn = qn <= 0 ? 64 : qn;
-    final needsDash = result.sources.isEmpty ||
+    final needsDash =
+        result.sources.isEmpty ||
         result.sources.values.any((source) => source.isSegmented) ||
         result.selectedQn < requestedQn;
     if (needsDash) {
@@ -480,6 +471,7 @@ class BiliApi {
     final data = await _request(
       passportBase,
       '/x/passport-login/web/qrcode/generate',
+      params: const {'source': 'main-fe-header'},
       withCookies: false,
     );
     if (data is! Map<String, dynamic>) {
@@ -494,11 +486,15 @@ class BiliApi {
   }
 
   Future<QrPoll> pollQr(String key) async {
+    String? setCookie;
     final data = await _request(
       passportBase,
       '/x/passport-login/web/qrcode/poll',
-      params: {'qrcode_key': key},
+      params: {'qrcode_key': key, 'source': 'main-fe-header'},
       withCookies: false,
+      onResponse: (response) {
+        setCookie = response.headers['set-cookie'];
+      },
     );
     if (data is! Map<String, dynamic>) {
       throw const BiliException(-1, '登录状态为空');
@@ -513,41 +509,83 @@ class BiliApi {
     };
     Credential? credential;
     if (status == QrStatus.success) {
-      credential = _credentialFromUrl(
-        asString(data['url']),
+      final values = <String, String>{};
+      _mergeCookieUrlValues(values, asString(data['url']));
+      _mergeCookieHeaderValues(values, setCookie);
+      credential = _credentialFromValues(
+        values,
         asString(data['refresh_token']),
       );
     }
-    return QrPoll(
-      status: status,
-      message: message,
-      credential: credential,
-    );
+    return QrPoll(status: status, message: message, credential: credential);
   }
 
-  Credential? _credentialFromUrl(String url, String refreshToken) {
-    if (url.isEmpty) return null;
+  static const _cookieNames = {
+    'SESSDATA',
+    'bili_jct',
+    'DedeUserID',
+    'DedeUserID__ckMd5',
+    'sid',
+    'buvid3',
+    'buvid4',
+  };
+
+  static const _canonicalCookieNames = {
+    'sessdata': 'SESSDATA',
+    'bili_jct': 'bili_jct',
+    'dedeuserid': 'DedeUserID',
+    'dedeuserid__ckmd5': 'DedeUserID__ckMd5',
+    'sid': 'sid',
+    'buvid3': 'buvid3',
+    'buvid4': 'buvid4',
+  };
+
+  void _mergeCookieUrlValues(Map<String, String> values, String url) {
+    if (url.isEmpty) return;
     final queryIndex = url.indexOf('?');
-    if (queryIndex < 0) return null;
-    final query = url.substring(queryIndex + 1);
-    final values = <String, String>{};
-    for (final pair in query.split('&')) {
+    if (queryIndex < 0) return;
+    for (final pair in url.substring(queryIndex + 1).split('&')) {
       final index = pair.indexOf('=');
-      if (index > 0) {
-        values[pair.substring(0, index)] = pair.substring(index + 1);
-      }
+      if (index <= 0) continue;
+      final name = pair.substring(0, index);
+      if (!_cookieNames.contains(name)) continue;
+      final value = pair.substring(index + 1);
+      if (value.isNotEmpty) values[name] = value;
     }
+  }
+
+  void _mergeCookieHeaderValues(Map<String, String> values, String? setCookie) {
+    if (setCookie == null || setCookie.isEmpty) return;
+    final pattern = RegExp(
+      r'(?:^|[,;]\s*)(SESSDATA|bili_jct|DedeUserID__ckMd5|DedeUserID|sid|buvid3|buvid4)=([^;,]*)',
+      caseSensitive: false,
+    );
+    for (final match in pattern.allMatches(setCookie)) {
+      final rawName = match.group(1);
+      final value = match.group(2);
+      if (rawName == null || value == null || value.isEmpty) continue;
+      final name = _canonicalCookieNames[rawName.toLowerCase()];
+      if (name != null) values[name] = value;
+    }
+  }
+
+  Credential? _credentialFromValues(
+    Map<String, String> values,
+    String refreshToken,
+  ) {
     final sessData = values['SESSDATA'];
     if (sessData == null || sessData.isEmpty) return null;
     return Credential(
       sessData: sessData,
       biliJct: values['bili_jct'] ?? '',
       dedeUserId: values['DedeUserID'] ?? '',
+      dedeUserIdCkMd5: values['DedeUserID__ckMd5'] ?? '',
+      sid: values['sid'] ?? '',
       refreshToken: refreshToken,
     );
   }
 
-  Future<BiliUser?> currentUser() async {
+  Future<BiliUser?> currentUser({bool throwOnError = false}) async {
     try {
       final data = await _request(
         apiBase,
@@ -561,7 +599,8 @@ class BiliApi {
         name: asString(data['uname']),
         faceUrl: normalizeBiliUrl(asString(data['face'])),
       );
-    } catch (_) {
+    } catch (error) {
+      if (throwOnError) rethrow;
       return null;
     }
   }

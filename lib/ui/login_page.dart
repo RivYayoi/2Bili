@@ -100,7 +100,10 @@ class _LoginPageState extends State<LoginPage> {
         if (poll.status == QrStatus.expired) return;
       } catch (error) {
         if (!mounted || generation != _generation) return;
-        setState(() => _error = error);
+        setState(() {
+          _error = error;
+          _message = '登录失败，请重试';
+        });
       }
     }
   }
