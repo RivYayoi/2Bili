@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/legacy.dart';
 
 import '../core/bili_api.dart';
 import '../core/danmaku_service.dart';
@@ -63,12 +64,17 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
   StreamSubscription<Danmaku>? _danmakuSubscription;
   int _loadGeneration = 0;
   int _danmakuGeneration = 0;
+  Timer? _hideTimer;
+  bool _controlsVisible = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.fullscreen) unawaited(_enterLandscape());
+    if (widget.fullscreen) {
+      _scheduleFullscreenMode(true);
+      _scheduleHide();
+    }
     _player = Player(
       configuration: const PlayerConfiguration(
         title: '2bili',
@@ -119,18 +125,21 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
       _switchVideo();
     }
     if (oldWidget.fullscreen != widget.fullscreen) {
+      _hideTimer?.cancel();
+      _hideTimer = null;
+      _controlsVisible = true;
       if (widget.fullscreen) {
-        unawaited(_enterLandscape());
-      } else {
-        unawaited(_restoreOrientation());
+        _scheduleHide();
       }
+      _scheduleFullscreenMode(widget.fullscreen);
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (widget.fullscreen) unawaited(_restoreOrientation());
+    _hideTimer?.cancel();
+    if (widget.fullscreen) _scheduleFullscreenMode(false);
     _loadGeneration++;
     _danmakuGeneration++;
     for (final subscription in _subscriptions) {
@@ -143,27 +152,76 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
     super.dispose();
   }
 
-  Future<void> _enterLandscape() async {
-    if (!Platform.isAndroid) return;
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  void _scheduleFullscreenMode(bool fullscreen) {
+    Future<void>.delayed(Duration.zero, () {
+      if (fullscreen && !mounted) return;
+      unawaited(fullscreen ? _enterFullscreenMode() : _restoreFullscreenMode());
+    });
   }
 
-  Future<void> _restoreOrientation() async {
-    if (!Platform.isAndroid) return;
-    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  Future<void> _enterFullscreenMode() async {
+    if (Platform.isAndroid) {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      return;
+    }
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      await windowManager.setFullScreen(true);
+    }
+  }
+
+  Future<void> _restoreFullscreenMode() async {
+    if (Platform.isAndroid) {
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      return;
+    }
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      await windowManager.setFullScreen(false);
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (widget.fullscreen &&
-        Platform.isAndroid &&
-        state == AppLifecycleState.resumed) {
-      unawaited(_enterLandscape());
+    if (widget.fullscreen && state == AppLifecycleState.resumed) {
+      _showControls();
+      _scheduleFullscreenMode(true);
+    }
+  }
+
+  void _showControls() {
+    if (!mounted || !widget.fullscreen) return;
+    _hideTimer?.cancel();
+    if (!_controlsVisible) {
+      setState(() => _controlsVisible = true);
+    }
+    _scheduleHide();
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (!mounted || !widget.fullscreen || !_controlsVisible) return;
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !widget.fullscreen) return;
+      setState(() => _controlsVisible = false);
+    });
+  }
+
+  void _cancelHideTimer() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+  }
+
+  void _toggleControls() {
+    if (!widget.fullscreen) return;
+    if (_controlsVisible) {
+      _hideTimer?.cancel();
+      setState(() => _controlsVisible = false);
+    } else {
+      _showControls();
     }
   }
 
@@ -378,60 +436,94 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 520;
-        return ColoredBox(
-          color: Colors.black,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Video(
-                controller: _videoController,
-                controls: NoVideoControls,
-                fit: BoxFit.contain,
-              ),
-              DanmakuOverlay(
-                buffer: _danmakuBuffer,
-                positionMs: _positionMs,
-                playing: _playing,
-                enabled: settings.danmakuEnabled,
-                opacity: settings.danmakuOpacity,
-                fontScale: settings.danmakuFontScale,
-                speed: settings.danmakuSpeed,
-                area: settings.danmakuArea,
-                stroke: settings.danmakuStroke,
-                showScroll: settings.danmakuShowScroll,
-                showTop: settings.danmakuShowTop,
-                showBottom: settings.danmakuShowBottom,
-              ),
-              _buildTopBar(compact),
-              if (!_playing && !_loading && _error == null)
-                Center(
-                  child: IconButton(
-                    tooltip: '播放',
-                    onPressed: _togglePlay,
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.42),
+        final controlsVisible = !widget.fullscreen || _controlsVisible;
+        return MouseRegion(
+          cursor: widget.fullscreen && !_controlsVisible
+              ? SystemMouseCursors.none
+              : MouseCursor.defer,
+          onHover: (_) {
+            if (widget.fullscreen) _showControls();
+          },
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) {
+              if (widget.fullscreen && _controlsVisible) _showControls();
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleControls,
+              child: ColoredBox(
+                color: Colors.black,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Video(
+                      controller: _videoController,
+                      controls: NoVideoControls,
+                      fit: BoxFit.contain,
                     ),
-                    icon: Icon(
-                      Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: compact ? 42 : 56,
+                    DanmakuOverlay(
+                      buffer: _danmakuBuffer,
+                      positionMs: _positionMs,
+                      playing: _playing,
+                      enabled: settings.danmakuEnabled,
+                      opacity: settings.danmakuOpacity,
+                      fontScale: settings.danmakuFontScale,
+                      speed: settings.danmakuSpeed,
+                      area: settings.danmakuArea,
+                      stroke: settings.danmakuStroke,
+                      showScroll: settings.danmakuShowScroll,
+                      showTop: settings.danmakuShowTop,
+                      showBottom: settings.danmakuShowBottom,
                     ),
-                  ),
+                    _buildTopBar(compact, controlsVisible),
+                    if (!_playing && !_loading && _error == null)
+                      IgnorePointer(
+                        ignoring: !controlsVisible,
+                        child: AnimatedOpacity(
+                          opacity: controlsVisible ? 1 : 0,
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          child: Center(
+                            child: IconButton(
+                              tooltip: '播放',
+                              onPressed: _togglePlay,
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black.withValues(
+                                  alpha: 0.42,
+                                ),
+                              ),
+                              icon: Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: compact ? 42 : 56,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if ((_loading || _buffering) && _error == null)
+                      const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      ),
+                    if (_error != null) _buildError(compact),
+                    _buildBottomBar(
+                      compact,
+                      shownPosition,
+                      progress,
+                      controlsVisible,
+                    ),
+                  ],
                 ),
-              if ((_loading || _buffering) && _error == null)
-                const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              if (_error != null) _buildError(compact),
-              _buildBottomBar(compact, shownPosition, progress),
-            ],
+              ),
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildTopBar(bool compact) {
+  Widget _buildTopBar(bool compact, bool controlsVisible) {
     final row = Row(
       children: [
         if (widget.fullscreen) ...[
@@ -456,7 +548,11 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
           const Spacer(),
         IconButton(
           tooltip: '弹幕设置',
-          onPressed: () => showDanmakuSettingsSheet(context),
+          onPressed: () async {
+            _cancelHideTimer();
+            await showDanmakuSettingsSheet(context);
+            _scheduleHide();
+          },
           style: widget.fullscreen
               ? null
               : IconButton.styleFrom(
@@ -478,6 +574,8 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
           data: _playData,
           selectedQn: _selectedQn,
           onSelected: _selectQuality,
+          onOpened: _cancelHideTimer,
+          onCanceled: _scheduleHide,
           compact: compact,
           showBackground: !widget.fullscreen,
         ),
@@ -494,10 +592,28 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
       padding: EdgeInsets.only(bottom: compact ? 8 : 12),
       child: widget.fullscreen ? SafeArea(bottom: false, child: row) : row,
     );
-    return Positioned(left: 0, right: 0, top: 0, child: content);
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      child: IgnorePointer(
+        ignoring: !controlsVisible,
+        child: AnimatedOpacity(
+          opacity: controlsVisible ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: content,
+        ),
+      ),
+    );
   }
 
-  Widget _buildBottomBar(bool compact, int shownPosition, double progress) {
+  Widget _buildBottomBar(
+    bool compact,
+    int shownPosition,
+    double progress,
+    bool controlsVisible,
+  ) {
     final timeStyle = TextStyle(
       color: Colors.white,
       fontSize: compact ? 10 : 12,
@@ -523,14 +639,18 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
             ),
             child: Slider(
               value: progress,
-              onChangeStart: (value) => setState(() {
-                _dragging = true;
-                _dragValue = value;
-              }),
+              onChangeStart: (value) {
+                _cancelHideTimer();
+                setState(() {
+                  _dragging = true;
+                  _dragValue = value;
+                });
+              },
               onChanged: (value) => setState(() => _dragValue = value),
               onChangeEnd: (value) {
                 _seekTo(value);
                 setState(() => _dragging = false);
+                _scheduleHide();
               },
             ),
           ),
@@ -539,7 +659,12 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
         PopupMenuButton<double>(
           tooltip: '播放速度',
           initialValue: _speed,
-          onSelected: _setSpeed,
+          onOpened: _cancelHideTimer,
+          onCanceled: _scheduleHide,
+          onSelected: (value) {
+            _setSpeed(value);
+            _scheduleHide();
+          },
           itemBuilder: (context) => const [
             PopupMenuItem(value: 0.5, child: Text('0.5x')),
             PopupMenuItem(value: 0.75, child: Text('0.75x')),
@@ -589,7 +714,20 @@ class VideoPlayerPanelState extends State<VideoPlayerPanel>
       padding: EdgeInsets.only(top: compact ? 6 : 10),
       child: widget.fullscreen ? SafeArea(top: false, child: row) : row,
     );
-    return Positioned(left: 0, right: 0, bottom: 0, child: content);
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        ignoring: !controlsVisible,
+        child: AnimatedOpacity(
+          opacity: controlsVisible ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: content,
+        ),
+      ),
+    );
   }
 
   Widget _buildError(bool compact) {
@@ -650,6 +788,8 @@ class _QualityMenu extends StatelessWidget {
     required this.data,
     required this.selectedQn,
     required this.onSelected,
+    this.onOpened,
+    this.onCanceled,
     this.compact = false,
     this.showBackground = false,
   });
@@ -657,6 +797,8 @@ class _QualityMenu extends StatelessWidget {
   final PlayData? data;
   final int selectedQn;
   final ValueChanged<int> onSelected;
+  final VoidCallback? onOpened;
+  final VoidCallback? onCanceled;
   final bool compact;
   final bool showBackground;
 
@@ -701,7 +843,12 @@ class _QualityMenu extends StatelessWidget {
     return PopupMenuButton<int>(
       tooltip: '画质',
       initialValue: selected.qn,
-      onSelected: onSelected,
+      onOpened: onOpened,
+      onCanceled: onCanceled,
+      onSelected: (value) {
+        onSelected(value);
+        onCanceled?.call();
+      },
       itemBuilder: (context) => qualities
           .map(
             (quality) => PopupMenuItem<int>(
