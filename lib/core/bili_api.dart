@@ -151,6 +151,63 @@ class BiliApi {
     return decoded['data'];
   }
 
+  Future<dynamic> _postForm(
+    String base,
+    String path, {
+    Map<String, String>? params,
+    required Map<String, String> form,
+    bool withCookies = true,
+    bool includeCredential = true,
+  }) async {
+    final uri = Uri.parse(base).replace(
+      path: path,
+      queryParameters: params == null || params.isEmpty ? null : params,
+    );
+    final headers = <String, String>{
+      ...requestHeaders,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    if (withCookies) {
+      final cookie = auth.cookieHeader(includeCredential: includeCredential);
+      if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
+    }
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(uri, headers: headers, body: form)
+          .timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      throw const NetworkException('request timeout');
+    } catch (error) {
+      throw NetworkException('$error');
+    }
+
+    if (response.statusCode == 412) {
+      throw const BiliException(412, 'HTTP 412');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw BiliException(response.statusCode, 'HTTP ${response.statusCode}');
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(
+        utf8.decode(response.bodyBytes, allowMalformed: true),
+      );
+    } catch (_) {
+      throw const BiliException(-1, '响应解析失败');
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const BiliException(-1, '响应格式异常');
+    }
+    final code = asInt(decoded['code'], -1);
+    if (code != 0) {
+      throw BiliException(code, asString(decoded['message']));
+    }
+    return decoded['data'];
+  }
+
   Future<String> _getMixinKey({bool forceRefresh = false}) async {
     final now = DateTime.now();
     final cached = _mixinKey;
@@ -364,6 +421,199 @@ class BiliApi {
       page: page,
       hasMore: items.length >= pageSize,
     );
+  }
+
+  Future<HistoryPageResult> history({
+    int max = 0,
+    int viewAt = 0,
+    String business = '',
+    int pageSize = 20,
+  }) async {
+    final data = await _request(
+      apiBase,
+      '/x/web-interface/history/cursor',
+      params: {
+        'max': '$max',
+        'view_at': '$viewAt',
+        if (business.isNotEmpty) 'business': business,
+        'ps': '${pageSize.clamp(1, 30).toInt()}',
+      },
+    );
+    if (data is! Map<String, dynamic>) {
+      throw const BiliException(-1, '历史记录为空');
+    }
+    final items = <HistoryItem>[];
+    final rawList = data['list'];
+    if (rawList is List) {
+      for (final item in rawList) {
+        if (item is! Map<String, dynamic>) continue;
+        final history = item['history'];
+        if (history is! Map<String, dynamic>) continue;
+        final bvid = asString(history['bvid']);
+        final aid = asInt(history['oid']);
+        if (bvid.isEmpty || aid <= 0) continue;
+        final entry = HistoryItem.fromJson(item);
+        if (entry.video.bvid.isNotEmpty) items.add(entry);
+      }
+    }
+    final cursor = data['cursor'];
+    final nextMax = cursor is Map ? asInt(cursor['max']) : 0;
+    final nextViewAt = cursor is Map ? asInt(cursor['view_at']) : 0;
+    final nextBusiness = cursor is Map ? asString(cursor['business']) : '';
+    return HistoryPageResult(
+      items: items,
+      nextMax: nextMax,
+      nextViewAt: nextViewAt,
+      nextBusiness: nextBusiness,
+      hasMore: nextMax > 0 && rawList is List && rawList.isNotEmpty,
+    );
+  }
+
+  Future<List<FavoriteFolder>> favoriteFolders({int? rid}) async {
+    final mid = await _currentMid();
+    final data = await _request(
+      apiBase,
+      '/x/v3/fav/folder/created/list-all',
+      params: {
+        'up_mid': '$mid',
+        'type': '2',
+        'web_location': '333.1387',
+        if (rid != null && rid > 0) 'rid': '$rid',
+      },
+    );
+    if (data is! Map<String, dynamic>) return const [];
+    final raw = data['list'];
+    if (raw is! List) return const [];
+    final folders = <FavoriteFolder>[];
+    for (final item in raw) {
+      if (item is! Map<String, dynamic>) continue;
+      final folder = FavoriteFolder.fromJson(item);
+      if (folder.id > 0) folders.add(folder);
+    }
+    return folders;
+  }
+
+  Future<FavoriteMediaPage> favoriteMedia({
+    required int folderId,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final size = pageSize.clamp(1, 20).toInt();
+    final data = await _request(
+      apiBase,
+      '/x/v3/fav/resource/list',
+      params: {
+        'media_id': '$folderId',
+        'pn': '$page',
+        'ps': '$size',
+        'order': 'mtime',
+        'type': '0',
+        'tid': '0',
+        'platform': 'web',
+      },
+    );
+    if (data is! Map<String, dynamic>) {
+      throw const BiliException(-1, '收藏夹内容为空');
+    }
+    final items = <FavoriteMedia>[];
+    final raw = data['medias'];
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is! Map<String, dynamic>) continue;
+        if (asInt(item['type']) != 2) continue;
+        final media = FavoriteMedia.fromJson(item, folderId);
+        if (media.video.bvid.isNotEmpty && media.aid > 0) items.add(media);
+      }
+    }
+    final info = data['info'];
+    final totalCount = info is Map ? asInt(info['media_count']) : 0;
+    final hasMore =
+        data['has_more'] == true ||
+        (data['has_more'] == null && raw is List && raw.length >= size);
+    return FavoriteMediaPage(
+      items: items,
+      page: page,
+      hasMore: hasMore,
+      totalCount: totalCount,
+    );
+  }
+
+  Future<FavoriteState> favoriteState(int aid) async {
+    final data = await _request(
+      apiBase,
+      '/x/v2/fav/video/favoured',
+      params: {'aid': '$aid'},
+    );
+    if (data is! Map<String, dynamic>) {
+      return const FavoriteState(favoured: false, count: 0);
+    }
+    return FavoriteState(
+      favoured: data['favoured'] == true || asInt(data['favoured']) == 1,
+      count: asInt(data['count']),
+    );
+  }
+
+  Future<void> addFavorite({required int aid, required int folderId}) async {
+    await dealFavorite(aid: aid, addFolderIds: [folderId]);
+  }
+
+  Future<void> removeFavorite({required int aid, required int folderId}) async {
+    await dealFavorite(aid: aid, delFolderIds: [folderId]);
+  }
+
+  Future<void> dealFavorite({
+    required int aid,
+    List<int> addFolderIds = const [],
+    List<int> delFolderIds = const [],
+  }) async {
+    if (addFolderIds.isEmpty && delFolderIds.isEmpty) return;
+    final csrf = auth.credential?.biliJct ?? '';
+    if (csrf.isEmpty) {
+      throw const BiliException(-101, '请先登录');
+    }
+    try {
+      await _postForm(
+        apiBase,
+        '/x/v3/fav/resource/deal',
+        form: {
+          'rid': '$aid',
+          'type': '2',
+          if (addFolderIds.isNotEmpty) 'add_media_ids': addFolderIds.join(','),
+          if (delFolderIds.isNotEmpty) 'del_media_ids': delFolderIds.join(','),
+          'csrf': csrf,
+        },
+      );
+    } on BiliException catch (error) {
+      // These codes mean the requested state is already present.
+      if (error.code != 11201 && error.code != 11202) rethrow;
+    }
+  }
+
+  Future<FavoriteFolder> createFavoriteFolder(String title) async {
+    final csrf = auth.credential?.biliJct ?? '';
+    if (csrf.isEmpty) {
+      throw const BiliException(-101, '请先登录');
+    }
+    final data = await _postForm(
+      apiBase,
+      '/x/v3/fav/folder/add',
+      form: {'title': title, 'privacy': '0', 'csrf': csrf},
+    );
+    if (data is Map<String, dynamic>) {
+      return FavoriteFolder.fromJson(data);
+    }
+    throw const BiliException(-1, '收藏夹创建失败');
+  }
+
+  Future<int> _currentMid() async {
+    final raw = auth.credential?.dedeUserId ?? '';
+    final mid = int.tryParse(raw);
+    if (mid != null && mid > 0) return mid;
+    final user = await currentUser(throwOnError: true);
+    if (user == null || user.mid <= 0) {
+      throw const BiliException(-101, '请先登录');
+    }
+    return user.mid;
   }
 
   Future<CommentPage> comments({

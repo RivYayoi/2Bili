@@ -5,15 +5,22 @@ import 'package:provider/provider.dart';
 
 import '../core/bili_api.dart';
 import '../core/models.dart';
+import 'favorite_button.dart';
 import 'theme.dart';
 import 'video_player_panel.dart';
 import 'widgets.dart';
 
 class VideoDetailPage extends StatefulWidget {
-  const VideoDetailPage({super.key, required this.bvid, this.title});
+  const VideoDetailPage({
+    super.key,
+    required this.bvid,
+    this.title,
+    this.initialCid,
+  });
 
   final String bvid;
   final String? title;
+  final int? initialCid;
 
   @override
   State<VideoDetailPage> createState() => _VideoDetailPageState();
@@ -85,11 +92,14 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     try {
       final detail = await context.read<BiliApi>().detail(widget.bvid);
       if (!mounted) return;
+      final targetCid = _selectedPage?.cid ?? widget.initialCid;
       VideoPage? selected;
-      for (final page in detail.pages) {
-        if (page.cid == _selectedPage?.cid) {
-          selected = page;
-          break;
+      if (targetCid != null) {
+        for (final page in detail.pages) {
+          if (page.cid == targetCid) {
+            selected = page;
+            break;
+          }
         }
       }
       selected ??= detail.pages.isEmpty ? null : detail.pages.first;
@@ -640,6 +650,8 @@ class _DetailInfo extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+        const SizedBox(height: 12),
+        FavoriteButton(key: ValueKey(detail.aid), aid: detail.aid),
         const SizedBox(height: 12),
         Text(
           detail.description.isEmpty ? '暂无简介' : detail.description,

@@ -94,6 +94,190 @@ class VideoPageResult {
   final bool hasMore;
 }
 
+class HistoryItem {
+  const HistoryItem({
+    required this.video,
+    required this.cid,
+    required this.page,
+    required this.part,
+    required this.progressSec,
+    required this.durationSec,
+    required this.viewedAt,
+    required this.finished,
+    required this.pageCount,
+  });
+
+  final VideoItem video;
+  final int cid;
+  final int page;
+  final String part;
+  final int progressSec;
+  final int durationSec;
+  final int viewedAt;
+  final bool finished;
+  final int pageCount;
+
+  factory HistoryItem.fromJson(Map<String, dynamic> json) {
+    final history = json['history'];
+    final raw = history is Map<String, dynamic>
+        ? history
+        : const <String, dynamic>{};
+    final rawProgress = asInt(json['progress']);
+    final finished = json['is_finish'] == true || rawProgress < 0;
+    final duration = asInt(json['duration']);
+    final cover = _historyCover(json);
+    final video = VideoItem(
+      bvid: asString(raw['bvid']),
+      aid: asInt(raw['oid']),
+      cid: asInt(raw['cid']),
+      title: unescapeHtml(stripHtml(asString(json['title'], '无标题')))
+          .ifEmpty('无标题'),
+      coverUrl: cover,
+      durationSec: duration,
+      ownerName: asString(json['author_name']),
+    );
+    return HistoryItem(
+      video: video,
+      cid: asInt(raw['cid']),
+      page: asInt(raw['page'], 1),
+      part: asString(raw['part']),
+      progressSec: finished ? duration : (rawProgress > 0 ? rawProgress : 0),
+      durationSec: duration,
+      viewedAt: asInt(json['view_at']),
+      finished: finished,
+      pageCount: asInt(json['videos']),
+    );
+  }
+
+  String get progressLabel {
+    if (finished) return '已看完';
+    if (progressSec <= 0) return '尚未开始';
+    if (durationSec <= 0) return '看到 ${formatDuration(progressSec)}';
+    return '看到 ${formatDuration(progressSec)} / ${formatDuration(durationSec)}';
+  }
+
+  double get progressValue {
+    if (finished) return 1;
+    if (durationSec <= 0) return 0;
+    return (progressSec / durationSec).clamp(0, 1).toDouble();
+  }
+}
+
+String _historyCover(Map<String, dynamic> json) {
+  final direct = normalizeBiliUrl(asString(json['cover']));
+  if (direct.isNotEmpty) return direct;
+  final covers = json['covers'];
+  if (covers is List) {
+    for (final item in covers) {
+      final url = normalizeBiliUrl(asString(item));
+      if (url.isNotEmpty) return url;
+    }
+  }
+  return '';
+}
+
+class HistoryPageResult {
+  const HistoryPageResult({
+    required this.items,
+    required this.nextMax,
+    required this.nextViewAt,
+    required this.nextBusiness,
+    required this.hasMore,
+  });
+
+  final List<HistoryItem> items;
+  final int nextMax;
+  final int nextViewAt;
+  final String nextBusiness;
+  final bool hasMore;
+}
+
+class FavoriteFolder {
+  const FavoriteFolder({
+    required this.id,
+    required this.title,
+    required this.mediaCount,
+    this.isDefault = false,
+    this.isTargetFavoured = false,
+  });
+
+  final int id;
+  final String title;
+  final int mediaCount;
+  final bool isDefault;
+  final bool isTargetFavoured;
+
+  factory FavoriteFolder.fromJson(Map<String, dynamic> json) {
+    final attr = asInt(json['attr']);
+    return FavoriteFolder(
+      id: asInt(json['id'], asInt(json['fid'])),
+      title: asString(json['title'], '未命名收藏夹').ifEmpty('未命名收藏夹'),
+      mediaCount: asInt(json['media_count']),
+      // Bit 1 of attr is set for non-default folders.
+      isDefault: (attr & 2) == 0,
+      isTargetFavoured: asInt(json['fav_state']) == 1,
+    );
+  }
+}
+
+class FavoriteMedia {
+  const FavoriteMedia({
+    required this.aid,
+    required this.folderId,
+    required this.favTime,
+    required this.video,
+  });
+
+  final int aid;
+  final int folderId;
+  final int favTime;
+  final VideoItem video;
+
+  factory FavoriteMedia.fromJson(Map<String, dynamic> json, int folderId) {
+    final upper = json['upper'];
+    final cntInfo = json['cnt_info'];
+    final title = unescapeHtml(stripHtml(asString(json['title'], '无标题')))
+        .ifEmpty('无标题');
+    final aid = asInt(json['id']);
+    return FavoriteMedia(
+      aid: aid,
+      folderId: folderId,
+      favTime: asInt(json['fav_time']),
+      video: VideoItem(
+        bvid: asString(json['bvid'], asString(json['bv_id'])),
+        aid: aid,
+        title: title,
+        coverUrl: normalizeBiliUrl(asString(json['cover'])),
+        durationSec: asInt(json['duration']),
+        ownerName: upper is Map ? asString(upper['name']) : '',
+        viewCount: cntInfo is Map ? asInt(cntInfo['play']) : 0,
+        danmakuCount: cntInfo is Map ? asInt(cntInfo['danmaku']) : 0,
+      ),
+    );
+  }
+}
+
+class FavoriteMediaPage {
+  const FavoriteMediaPage({
+    required this.items,
+    required this.page,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  final List<FavoriteMedia> items;
+  final int page;
+  final bool hasMore;
+  final int totalCount;
+}
+
+class FavoriteState {
+  const FavoriteState({required this.favoured, required this.count});
+
+  final bool favoured;
+  final int count;
+}
+
 class VideoPage {
   const VideoPage({
     required this.cid,
@@ -693,6 +877,27 @@ String formatCommentTime(int epochSeconds, {int? nowSeconds}) {
   if (seconds < 2592000) return '${seconds ~/ 86400}天前';
   if (seconds < 31536000) return '${seconds ~/ 2592000}个月前';
   return '${seconds ~/ 31536000}年前';
+}
+
+String formatHistoryTime(int epochSeconds, {DateTime? now}) {
+  if (epochSeconds <= 0) return '';
+  final date = DateTime.fromMillisecondsSinceEpoch(epochSeconds * 1000);
+  final current = now ?? DateTime.now();
+  final today = DateTime(current.year, current.month, current.day);
+  final day = DateTime(date.year, date.month, date.day);
+  final days = today.difference(day).inDays;
+  final time =
+      '${date.hour.toString().padLeft(2, '0')}:'
+      '${date.minute.toString().padLeft(2, '0')}';
+  if (days == 0) return '今天 $time';
+  if (days == 1) return '昨天 $time';
+  if (date.year == current.year) {
+    return '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')} $time';
+  }
+  return '${date.year}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }
 
 extension StringIfEmpty on String {

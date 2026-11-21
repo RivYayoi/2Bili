@@ -6,6 +6,7 @@ import '../core/bili_api.dart';
 import '../core/models.dart';
 import '../core/settings_store.dart';
 import 'detail_page.dart';
+import 'library_page.dart';
 import 'login_page.dart';
 import 'search_page.dart';
 import 'settings_page.dart';
@@ -114,6 +115,11 @@ class _HomePageState extends State<HomePage> {
         .push(MaterialPageRoute<void>(builder: (_) => const SearchPage()));
   }
 
+  void _openLibrary() {
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const LibraryPage()));
+  }
+
   void _openSettings() {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
@@ -141,6 +147,11 @@ class _HomePageState extends State<HomePage> {
             tooltip: '搜索',
             onPressed: _openSearch,
             icon: const Icon(Icons.search),
+          ),
+          IconButton(
+            tooltip: '历史与收藏',
+            onPressed: _openLibrary,
+            icon: const Icon(Icons.video_library_outlined),
           ),
           IconButton(
             tooltip: isLight ? '切换深色模式' : '切换浅色模式',
